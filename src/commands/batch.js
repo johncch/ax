@@ -15,6 +15,10 @@ export async function getBatchJob(job, engine, options) {
   return batchJob;
 }
 
+export const BatchJobOptions = {
+  "ignore-existing": "Ignores runs where files exist",
+};
+
 class BatchJob {
   runs = [];
 
@@ -25,7 +29,7 @@ class BatchJob {
 
   async setup(options) {
     if (options.verbose) {
-      console.log(`\n${chalk.orange("==>")} Verbose: Setting up batch job`);
+      console.log(`\n${chalk.gray("==>")} Verbose: Setting up batch job`);
     }
 
     // I don't want to overdesign this right now so I'm just going to do the
@@ -42,11 +46,24 @@ class BatchJob {
             it.file.output,
             pathToComponents(f.relative()),
           );
+          if (options.ignoreExisting) {
+            try {
+              await fs.access(run.output);
+              if (options.verbose) {
+                console.log(
+                  `Skipping run ${run.file} -> ${run.output} because it already exists`,
+                );
+              }
+              continue;
+            } catch (e) {
+              // do nothing
+            }
+          }
           this.runs.push(run);
         }
       }
       if (options.verbose) {
-        console.log(this.runs);
+        console.log(`runs to be executed: ${this.runs}`);
       }
     }
   }
@@ -54,6 +71,14 @@ class BatchJob {
   async execute(options) {
     const requests = [];
     const ongoingRequests = [];
+
+    if (this.runs.length == 0) {
+      return Promise.resolve("No runs to execute.").then(() => {
+        console.log(
+          `\n${chalk.blue("==>")} ${chalk.whiteBright.bold("No runs to execute.")}`,
+        );
+      });
+    }
 
     const stats = { in: 0, out: 0 };
     let completed = 0;
@@ -119,7 +144,7 @@ class BatchJob {
     }
 
     return Promise.all(requests).then(() => {
-      spinner.succeed("Batch job completed");
+      spinner.succeed(`All jobs (${this.runs.length}) completed`);
       console.log(
         `\n${chalk.blue("==>")} ${chalk.whiteBright.bold("Completion")}:`,
       );
