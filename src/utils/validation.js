@@ -16,3 +16,11 @@ export function validateJob(job, options) {
   }
   return job.job;
 }
+
+export function addOptions(program, commandOpts) {
+  for (const options of commandOpts) {
+    Object.keys(options).forEach((key) => {
+      program.option(`--${key}`, options[key]);
+    });
+  }
+}

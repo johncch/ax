@@ -3,8 +3,12 @@
 import { program } from "commander";
 import chalk from "chalk";
 import { readInputFile } from "../src/utils/file.js";
-import { validateConfig, validateJob } from "../src/utils/validation.js";
-import { getBatchJob } from "../src/commands/batch.js";
+import {
+  validateConfig,
+  validateJob,
+  addOptions,
+} from "../src/utils/validation.js";
+import { getBatchJob, BatchJobOptions } from "../src/commands/batch.js";
 import { getEngine } from "../src/engines/index.js";
 
 program
@@ -15,6 +19,8 @@ program
   )
   .option("--debug", "Print additional debug information")
   .option("--verbose", "Print out the options", false);
+
+addOptions(program, [BatchJobOptions]);
 
 program.parse();
 const options = program.opts();
