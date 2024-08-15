@@ -1,5 +1,5 @@
 import YAML from "yaml";
-import { ProgramOptions } from "../bin";
+import { ProgramOptions } from "../index.js";
 import { loadFile } from "./file";
 import { log } from "./logger.js";
 
@@ -21,7 +21,20 @@ export interface Using {
 export interface Job {
   type: "agent" | "batch";
   steps: Step[];
-  [key: string]: any;
+}
+
+export interface SkipOptions {
+  folder: string;
+  contains: string;
+}
+
+export interface BatchJob extends Job {
+  type: "batch";
+  batch: {
+    type: "files";
+    input: string;
+    "skip-condition"?: SkipOptions[];
+  }[];
 }
 
 export interface Step {

@@ -1,3 +1,4 @@
+import { glob } from "glob";
 import { readFile, writeFile, mkdir, access } from "node:fs/promises";
 import { resolve } from "node:path";
 import path from "path";
@@ -5,6 +6,14 @@ import path from "path";
 interface LoadFileResults {
   content: string;
   format: string;
+}
+
+export interface FilePathInfo {
+  absolutePath: string;
+  directoryPath: string;
+  fileExtension: string;
+  fileNameStem: string;
+  fullFileName: string;
 }
 
 export async function loadFile(
@@ -70,19 +79,31 @@ export function replaceFilePattern(pattern: string, path: any) {
   return pattern;
 }
 
-export function pathToComponents(fullpath) {
+export function pathToComponents(fullpath: string): FilePathInfo | null {
   const regex = /(?<name>[^\\/]+)(?<extension>\.[^\\/]+)$/;
   const matches = fullpath.match(regex);
+  if (matches && matches.length > 0 && matches.groups) {
+    return {
+      absolutePath: fullpath,
+      directoryPath: fullpath.replace(matches[0], ""),
+      fileExtension: matches.groups.extension,
+      fileNameStem: matches.groups.name,
+      fullFileName: matches[0],
+    };
+  }
+  return null;
+}
 
-  return {
-    path: fullpath,
-    folders: fullpath.replace(matches[0], ""),
-    file: {
-      full: matches[0],
-      name: matches.groups.name,
-      extension: matches.groups.extension,
-    },
-  };
+export async function fileExists(
+  baseName: string,
+  directory: string = ".",
+): Promise<boolean> {
+  try {
+    const files = await glob(`${directory}/${baseName}.*`);
+    return files.length > 0;
+  } catch {
+    return false;
+  }
 }
 
 // Function to ensure the directory exists

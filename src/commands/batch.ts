@@ -1,36 +1,38 @@
 import { glob } from "glob";
-import { arrayify } from "../utils/iteration";
-import { log } from "../utils/logger";
 import { readFile } from "node:fs/promises";
-import { pathToComponents } from "../utils/file";
-import { getAgentJob } from "./agent";
-import { Job } from "../utils/job";
-import { ProgramOptions } from "../bin";
-import { AIProvider } from "../engines";
-import { Stats } from "../utils/stats";
 import ora from "ora";
+import { AIProvider } from "../engines";
+import { ProgramOptions } from "../index.js";
+import { fileExists, FilePathInfo, pathToComponents } from "../utils/file";
+import { arrayify } from "../utils/iteration";
+import { BatchJob, SkipOptions } from "../utils/job";
+import { log } from "../utils/logger";
+import { Stats } from "../utils/stats";
+import { getAgentJob } from "./agent";
 
 interface Run {
-  job: Job;
+  job: BatchJob;
   variables: Record<string, any>;
 }
 
-export async function getBatchJob(
-  job: Job,
+type SkipHandler = () => boolean;
+
+export async function getBatchCommand(
+  job: BatchJob,
   engine: AIProvider,
   options: ProgramOptions,
 ) {
-  const batchJob = new BatchJob(job, engine);
+  const batchJob = new BatchCommand(job, engine);
   await batchJob.setup(options);
   return batchJob;
 }
 
-class BatchJob {
-  job: Job;
+class BatchCommand {
+  job: BatchJob;
   provider: AIProvider;
   runs: Run[] = [];
 
-  constructor(job: Job, engine: AIProvider) {
+  constructor(job: BatchJob, engine: AIProvider) {
     this.job = job;
     this.provider = engine;
   }
@@ -40,23 +42,31 @@ class BatchJob {
     if (!this.job.batch) {
       throw new Error("Batch job is missing batch field");
     }
+
     const batches = arrayify(this.job.batch);
     for (const batch of batches) {
       if (batch.type === "files") {
         const input = batch.input;
         const files = await glob(input, { withFileTypes: true });
+
         for (const f of files) {
           const filePath = f.fullpath();
           const components = pathToComponents(filePath);
-          const content = await readFile(filePath, "utf-8");
-          const run: Run = {
-            variables: {
-              content,
-              file: components,
-            },
-            job: this.job,
-          };
-          this.runs.push(run);
+          const shouldSkip = await processSkipRules(
+            batch["skip-condition"],
+            components,
+          );
+          if (!shouldSkip) {
+            const content = await readFile(filePath, "utf-8");
+            const run: Run = {
+              variables: {
+                content,
+                file: components,
+              },
+              job: this.job,
+            };
+            this.runs.push(run);
+          }
         }
       }
     }
@@ -102,4 +112,24 @@ class BatchJob {
       spinner.succeed(`All jobs (${this.runs.length}) completed`);
     });
   }
+}
+
+async function processSkipRules(
+  skipOptions: SkipOptions[] | undefined,
+  filePaths: FilePathInfo | null,
+): Promise<boolean> {
+  if (skipOptions) {
+    let allSkipOptions = arrayify(skipOptions);
+    for (const skip of allSkipOptions) {
+      if (
+        skip.folder &&
+        skip.contains &&
+        skip.contains === "fileNameStem" &&
+        filePaths
+      ) {
+        return await fileExists(filePaths.fileNameStem, skip.folder);
+      }
+    }
+  }
+  return false;
 }

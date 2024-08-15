@@ -1,5 +1,5 @@
 import { Command } from "@commander-js/extra-typings";
-import { getBatchJob } from "./commands/batch.js";
+import { getBatchCommand } from "./commands/batch.js";
 import { getEngine } from "./engines/index.js";
 import { getConfig, type Config } from "./utils/config.js";
 import { getJob, JobConfig } from "./utils/job.js";
@@ -55,7 +55,7 @@ const stats = {
 for (const [jobName, job] of Object.entries(jobConfig.jobs)) {
   log.info.log(`Executing "${jobName}"`);
   if (job.type == "batch") {
-    const executable = await getBatchJob(job, engine, options);
+    const executable = await getBatchCommand(job, engine, options);
     await executable.execute(options, stats);
   }
 }
