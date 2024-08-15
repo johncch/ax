@@ -1,0 +1,22 @@
+using:
+  engine: openai
+  model: gpt-3.5-turbo
+
+job:
+  music-research:
+    type: agent
+    steps:
+      - type: system
+        message: |
+          You are a researcher trying to find out about this musician or band: ${input-1}
+        variables:
+          - pattern: "${input-1}"
+            capture:
+              type: $1
+      - type: user
+        message: |
+          You are trying to find out about this musical act: ${input} and your goal is to collate a short biography, their recent discograph, and their upcoming tour dates and locations.
+
+          In addition, you have to simulate a conversation between the fans and the band members in an online forum.
+
+          You have access to these tools: websearch. What would be the next steps be?
