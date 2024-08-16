@@ -1,11 +1,16 @@
 import { ProgramOptions } from "../index.js";
 import { readFile } from "node:fs/promises";
 import { AIProvider, AIResponse, ChatItem } from "../engines";
-import { replaceFilePattern, writeFileWithDirectories } from "../utils/file";
-import { arrayify } from "../utils/iteration";
+import {
+  FilePathInfo,
+  replaceFilePattern,
+  writeFileWithDirectories,
+} from "../utils/file";
+import { arrayify, friendly } from "../utils/utils.js";
 import { Job, Step } from "../utils/job";
-import { log } from "../utils/logger";
+import { Display } from "../utils/display.js";
 import { Stats } from "../utils/stats";
+import { type UUID, randomUUID } from "node:crypto";
 
 export async function getAgentCommand(
   job: Job,
@@ -18,15 +23,17 @@ export async function getAgentCommand(
 
 export class AgentJob {
   type = "agent";
+  id: UUID;
   job: Job;
   provider: AIProvider;
-  variables: Record<string, string>;
+  variables: Record<string, any>;
 
   constructor(
     job: Job,
     provider: AIProvider,
     variables: Record<string, string> = {},
   ) {
+    this.id = randomUUID();
     this.job = job;
     this.provider = provider;
     this.variables = variables;
@@ -36,9 +43,13 @@ export class AgentJob {
     const { job, provider } = this;
     const { steps } = job;
 
+    Display.progress.add(this.id, `[${friendly(this.id)}] Starting job`);
     const messages: ChatItem[] = [];
     for (const [index, step] of steps.entries()) {
-      log?.info.log(`Processing step ${index}: ${step.role}`);
+      Display.progress.update(
+        this.id,
+        `[${friendly(this.id)}] Processing step ${index}: ${step.role}`,
+      );
       if (step.role === "system") {
         messages.push({
           role: step.role,
@@ -53,10 +64,6 @@ export class AgentJob {
         });
 
         // Execute
-        if (options.dryRun) {
-          log.info.log("Dry run mode enabled. Skipping API call.");
-          continue;
-        }
         const request = provider.createChatCompletionRequest(messages);
         const response = await request.execute();
 
@@ -79,6 +86,7 @@ export class AgentJob {
         }
       }
     }
+    Display.progress.succeed(this.id, `[${friendly(this.id)}] complete`);
   }
 
   async processInput(step: Step): Promise<string> {
@@ -149,12 +157,15 @@ export class AgentJob {
     for (const response of responses) {
       if (response.action === "write-to-disk") {
         const output = response.output;
-        const filepath = replaceFilePattern(output, this.variables.file);
+        const filepath = replaceFilePattern(
+          output,
+          this.variables.file as FilePathInfo,
+        );
         await writeFileWithDirectories(filepath, content);
       } else if (response.action === "save-to-variables") {
         this.variables[response.output] = content;
       } else {
-        log.debug?.log("No post action to take");
+        Display.debug?.log("No post action to take");
       }
     }
   }

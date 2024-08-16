@@ -1,14 +1,14 @@
 import { glob } from "glob";
 import { readFile } from "node:fs/promises";
-import ora from "ora";
 import { AIProvider } from "../engines";
 import { ProgramOptions } from "../index.js";
 import { fileExists, FilePathInfo, pathToComponents } from "../utils/file";
-import { arrayify } from "../utils/iteration";
+import { arrayify } from "../utils/utils.js";
 import { BatchJob, SkipOptions } from "../utils/job";
-import { log } from "../utils/logger";
+import { Display } from "../utils/display.js";
 import { Stats } from "../utils/stats";
 import { getAgentCommand } from "./agent";
+import { type UUID, randomUUID } from "node:crypto";
 
 interface Run {
   job: BatchJob;
@@ -26,17 +26,18 @@ export async function getBatchCommand(
 }
 
 class BatchCommand {
+  id: UUID;
   job: BatchJob;
   provider: AIProvider;
   runs: Run[] = [];
 
   constructor(job: BatchJob, engine: AIProvider) {
+    this.id = randomUUID();
     this.job = job;
     this.provider = engine;
   }
 
   async setup(options) {
-    log.verbose?.log("Setting up batch job");
     if (!this.job.batch) {
       throw new Error("Batch job is missing batch field");
     }
@@ -75,12 +76,12 @@ class BatchCommand {
     const ongoingRequests: Promise<void>[] = [];
     if (this.runs.length == 0) {
       return Promise.resolve("No runs to execute.").then(() => {
-        log.info.log("No runs to execute");
+        Display.info.log("No runs to execute");
       });
     }
 
     let completed = 0;
-    const spinner = ora(`Working on 0/${this.runs.length}`).start();
+    Display.progress.add(this.id, `Working on 0/${this.runs.length}`);
 
     for (let idx = 0; idx < this.runs.length; idx++) {
       const run = this.runs[idx];
@@ -98,7 +99,10 @@ class BatchCommand {
           reject();
         } finally {
           completed += 1;
-          spinner.text = `Working on ${completed}/${this.runs.length}`;
+          Display.progress.add(
+            this.id,
+            `Working on ${completed}/${this.runs.length}`,
+          );
         }
       });
 
@@ -111,7 +115,10 @@ class BatchCommand {
     }
 
     return Promise.all(requests).then(() => {
-      spinner.succeed(`All jobs (${this.runs.length}) completed`);
+      Display.progress.succeed(
+        this.id,
+        `All jobs (${this.runs.length}) completed`,
+      );
     });
   }
 }

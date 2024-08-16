@@ -1,7 +1,7 @@
 import YAML from "yaml";
-import { ProgramOptions } from "../bin";
+import { ProgramOptions } from "../index.js";
 import { loadFile } from "./file.js";
-import { log } from "./logger.js";
+import { Display } from "./display.js";
 
 /* Defaults */
 const DEFAULT_CONFIG_NAME = "ax.config";
@@ -39,7 +39,8 @@ export async function getConfig(
   } else {
     throw new Error("Invalid config file format");
   }
-  log.debug?.log(result);
+  Display.debug?.group("The Config Object");
+  Display.debug?.log(result);
 
   if (isConfig(result)) {
     return result as Config;

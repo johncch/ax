@@ -3,7 +3,7 @@ import { getBatchCommand } from "./commands/batch.js";
 import { getEngine } from "./engines/index.js";
 import { getConfig, type Config } from "./utils/config.js";
 import { getJob, isBatchJob, JobConfig } from "./utils/job.js";
-import { log } from "./utils/logger.js";
+import { Display } from "./utils/display.js";
 import { getAgentCommand } from "./commands/agent.js";
 
 const program = new Command()
@@ -14,15 +14,17 @@ const program = new Command()
   )
   .option("-c, --config <path>", "Path to the config file")
   .option("-j, --job <path>", "Path to the job file")
-  .option("-d, --debug", "Print additional debug information")
-  .option("--verbose", "Print out the options", false);
+  .option("-d, --debug", "Print additional debug information");
 
 program.parse();
 const options = program.opts();
 export type ProgramOptions = typeof options;
 
-log.setOptions(options);
-log.debug?.log(options);
+Display.setOptions(options);
+if (options.debug) {
+  Display.debug?.group("Options");
+  Display.debug?.log(options);
+}
 
 /**
  * Read and load config, job
@@ -47,14 +49,17 @@ if (!engine) {
   process.exit(1);
 }
 
-log.info.log("All systems operational. Running job...");
+Display.info.group("All systems operational. Running job...");
+if (options.dryRun) {
+  Display.info.log("Dry run mode enabled. No API calls will be made.");
+}
 
 const stats = {
   in: 0,
   out: 0,
 };
 for (const [jobName, job] of Object.entries(jobConfig.jobs)) {
-  log.info.log(`Executing "${jobName}"`);
+  Display.info.group(`Executing "${jobName}"`);
   if (isBatchJob(job)) {
     const executable = await getBatchCommand(job, engine, options);
     await executable.execute(options, stats);
@@ -64,7 +69,7 @@ for (const [jobName, job] of Object.entries(jobConfig.jobs)) {
   }
 }
 
-log.info.log("Usage");
-console.log(`Input tokens: ${stats.in} `);
-console.log(`Output tokens: ${stats.out} `);
-log.info.log("Complete. Goodbye");
+Display.info.group("Usage");
+Display.info.log(`Input tokens: ${stats.in} `);
+Display.info.log(`Output tokens: ${stats.out} `);
+Display.info.group("Complete. Goodbye");

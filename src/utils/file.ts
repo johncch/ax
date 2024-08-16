@@ -54,7 +54,7 @@ export async function loadFile(
   };
 }
 
-export function replaceFilePattern(pattern: string, path: any) {
+export function replaceFilePattern(pattern: string, path: FilePathInfo) {
   pattern = pattern.replace("**/*", "**"); // these are equivalent
   const regex = /(?<asterisks>\*{1,2})(?<extension>\.[^\\/]+)?/;
   const match = pattern.match(regex);
@@ -62,15 +62,15 @@ export function replaceFilePattern(pattern: string, path: any) {
   if (match) {
     let replacement = "";
     if (match.groups?.asterisks.length == 1) {
-      replacement += path.file.name;
+      replacement += path.fileNameStem;
     } else {
-      replacement += path.folders + path.file.name;
+      replacement += path.directoryPath + path.fileNameStem;
     }
 
     if (match.groups?.extension) {
       replacement += match.groups.extension;
     } else {
-      replacement += path.file.extension;
+      replacement += path.fileExtension;
     }
 
     return pattern.replace(match[0], replacement);
