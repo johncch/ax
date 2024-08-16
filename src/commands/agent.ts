@@ -1,4 +1,5 @@
-import { ProgramOptions } from "../bin";
+import { ProgramOptions } from "../index.js";
+import { readFile } from "node:fs/promises";
 import { AIProvider, AIResponse, ChatItem } from "../engines";
 import { replaceFilePattern, writeFileWithDirectories } from "../utils/file";
 import { arrayify } from "../utils/iteration";
@@ -6,7 +7,7 @@ import { Job, Step } from "../utils/job";
 import { log } from "../utils/logger";
 import { Stats } from "../utils/stats";
 
-export async function getAgentJob(
+export async function getAgentCommand(
   job: Job,
   provider: AIProvider,
   variables: Record<string, string> = {},
@@ -36,7 +37,8 @@ export class AgentJob {
     const { steps } = job;
 
     const messages: ChatItem[] = [];
-    for (const step of steps) {
+    for (const [index, step] of steps.entries()) {
+      log?.info.log(`Processing step ${index}: ${step.role}`);
       if (step.role === "system") {
         messages.push({
           role: step.role,
@@ -44,7 +46,7 @@ export class AgentJob {
         });
       } else if (step.role === "user") {
         // Input handling
-        const content = this.processInput(step);
+        const content = await this.processInput(step);
         messages.push({
           role: step.role,
           content,
@@ -79,12 +81,22 @@ export class AgentJob {
     }
   }
 
-  processInput(step: Step): string {
+  async processInput(step: Step): Promise<string> {
     let content = step.content;
     if (step.replace) {
       const replacements = arrayify(step.replace);
       for (const r of replacements) {
-        content = content.replace(r.pattern, this.variables[r.with]);
+        const source = r.source ?? "variables";
+        if (source === "variables") {
+          content = content.replace(r.pattern, this.variables[r.name]);
+        } else if (source === "file") {
+          try {
+            const replacement = await readFile(r.name, "utf-8");
+            content = content.replace(r.pattern, replacement);
+          } catch (error) {
+            console.error(error);
+          }
+        }
       }
     }
     return content;
@@ -139,6 +151,8 @@ export class AgentJob {
         const output = response.output;
         const filepath = replaceFilePattern(output, this.variables.file);
         await writeFileWithDirectories(filepath, content);
+      } else if (response.action === "save-to-variables") {
+        this.variables[response.output] = content;
       } else {
         log.debug?.log("No post action to take");
       }

@@ -2,8 +2,9 @@ import { Command } from "@commander-js/extra-typings";
 import { getBatchCommand } from "./commands/batch.js";
 import { getEngine } from "./engines/index.js";
 import { getConfig, type Config } from "./utils/config.js";
-import { getJob, JobConfig } from "./utils/job.js";
+import { getJob, isBatchJob, JobConfig } from "./utils/job.js";
 import { log } from "./utils/logger.js";
+import { getAgentCommand } from "./commands/agent.js";
 
 const program = new Command()
   .version("1.0.0")
@@ -54,8 +55,11 @@ const stats = {
 };
 for (const [jobName, job] of Object.entries(jobConfig.jobs)) {
   log.info.log(`Executing "${jobName}"`);
-  if (job.type == "batch") {
+  if (isBatchJob(job)) {
     const executable = await getBatchCommand(job, engine, options);
+    await executable.execute(options, stats);
+  } else {
+    const executable = await getAgentCommand(job, engine);
     await executable.execute(options, stats);
   }
 }

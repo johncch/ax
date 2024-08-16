@@ -37,7 +37,7 @@ jobs:
           ${input}
         replace:
           - pattern: "${input}"
-            with: content
+            name: content
         response:
           - action: write-to-disk
             output: ./output/*.txt

@@ -2,7 +2,7 @@ using:
   engine: openai
   model: gpt-3.5-turbo
 
-job:
+jobs:
   music-research:
     type: agent
     steps:

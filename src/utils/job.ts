@@ -76,6 +76,7 @@ export async function getJob(
 }
 
 /* Helpers */
+
 export function isJobConfig(obj: any): obj is JobConfig {
   if (!obj || typeof obj !== "object") {
     log.debug?.log("isJobConfig: obj is not an object");
@@ -141,6 +142,72 @@ export function isJob(obj: any): obj is Job {
     if (!isStep(step)) {
       log.debug?.log("isJob: invalid step in steps array");
       return false;
+    }
+  }
+
+  return true;
+}
+
+export function isSkipOptions(obj: any): obj is SkipOptions {
+  if (!obj || typeof obj !== "object") {
+    log.debug?.log("isSkipOptions: obj is not an object");
+    return false;
+  }
+
+  if (typeof obj.folder !== "string") {
+    log.debug?.log("isSkipOptions: folder is not a string");
+    return false;
+  }
+
+  if (typeof obj.contains !== "string") {
+    log.debug?.log("isSkipOptions: contains is not a string");
+    return false;
+  }
+
+  return true;
+}
+
+export function isBatchJob(obj: any): obj is BatchJob {
+  if (!isJob(obj)) {
+    log.debug?.log("isBatchJob: obj is not a valid Job");
+    return false;
+  }
+
+  obj = obj as BatchJob;
+
+  if (obj.type !== "batch") {
+    log.debug?.log("isBatchJob: job type is not 'batch'");
+    return false;
+  }
+
+  if (!Array.isArray(obj.batch)) {
+    log.debug?.log("isBatchJob: batch is not an array");
+    return false;
+  }
+
+  for (const batchItem of obj.batch) {
+    if (batchItem.type !== "files") {
+      log.debug?.log("isBatchJob: batch item type is not 'files'");
+      return false;
+    }
+
+    if (typeof batchItem.input !== "string") {
+      log.debug?.log("isBatchJob: input is not a string");
+      return false;
+    }
+
+    if (batchItem["skip-condition"] !== undefined) {
+      if (!Array.isArray(batchItem["skip-condition"])) {
+        log.debug?.log("isBatchJob: skip-condition is not an array");
+        return false;
+      }
+
+      for (const skipCondition of batchItem["skip-condition"]) {
+        if (!isSkipOptions(skipCondition)) {
+          log.debug?.log("isBatchJob: invalid skip-condition");
+          return false;
+        }
+      }
     }
   }
 

@@ -8,14 +8,12 @@ import { arrayify } from "../utils/iteration";
 import { BatchJob, SkipOptions } from "../utils/job";
 import { log } from "../utils/logger";
 import { Stats } from "../utils/stats";
-import { getAgentJob } from "./agent";
+import { getAgentCommand } from "./agent";
 
 interface Run {
   job: BatchJob;
   variables: Record<string, any>;
 }
-
-type SkipHandler = () => boolean;
 
 export async function getBatchCommand(
   job: BatchJob,
@@ -87,7 +85,11 @@ class BatchCommand {
     for (let idx = 0; idx < this.runs.length; idx++) {
       const run = this.runs[idx];
       const p = new Promise<void>(async (resolve, reject) => {
-        const agent = await getAgentJob(run.job, this.provider, run.variables);
+        const agent = await getAgentCommand(
+          run.job,
+          this.provider,
+          run.variables,
+        );
         try {
           await agent.execute(options, stats);
           resolve();
