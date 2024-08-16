@@ -3,6 +3,7 @@ import { ChatCompletionCreateParamsNonStreaming } from "openai/resources/chat/co
 import { ProgramOptions } from "../index.js";
 import { Config } from "../utils/config";
 import { AIProvider, AIRequest, AIResponse, ChatItem } from "./index.js";
+import { Display } from "../utils/display.js";
 
 export class OpenAIProvider implements AIProvider {
   name = "OpenAI";
@@ -35,21 +36,16 @@ class OpenAIRequest implements AIRequest {
   }
 
   async execute(): Promise<AIResponse> {
-    // The implementation right now does not wait for user prompt
-    // We'll add features as we need them
-    const promise = new Promise<any>(async (resolve, reject) => {
-      const messages = this.messages;
+    const request = {
+      model: this.model,
+      messages: this.messages,
+    } as ChatCompletionCreateParamsNonStreaming;
 
-      const chat_completion = await this.openai.chat.completions.create({
-        model: this.model,
-        messages,
-      } as ChatCompletionCreateParamsNonStreaming);
-
-      const response = translate(chat_completion);
-      resolve(response);
-    });
-
-    return promise;
+    Display.debug.log(request);
+    const chat_completion = await this.openai.chat.completions.create(request);
+    Display.debug.log(chat_completion);
+    const response = translate(chat_completion);
+    return response;
   }
 }
 

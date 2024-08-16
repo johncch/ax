@@ -14,6 +14,7 @@ const program = new Command()
   )
   .option("-c, --config <path>", "Path to the config file")
   .option("-j, --job <path>", "Path to the job file")
+  .option("--no-log", "Do not write the output to a log file")
   .option("-d, --debug", "Print additional debug information");
 
 program.parse();
@@ -21,6 +22,9 @@ const options = program.opts();
 export type ProgramOptions = typeof options;
 
 Display.setOptions(options);
+if (options.log) {
+  await Display.initWriter();
+}
 if (options.debug) {
   Display.debug?.group("Options");
   Display.debug?.log(options);
@@ -36,6 +40,7 @@ try {
   jobConfig = await getJob(options.job ?? null, options);
 } catch (e) {
   console.error(`${e}`);
+  console.error(`${e.stack}`);
   program.outputHelp();
   process.exit(1);
 }

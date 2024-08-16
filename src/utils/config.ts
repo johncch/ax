@@ -39,8 +39,8 @@ export async function getConfig(
   } else {
     throw new Error("Invalid config file format");
   }
-  Display.debug?.group("The Config Object");
-  Display.debug?.log(result);
+  Display.debug.group("The Config Object");
+  Display.debug.log(result);
 
   if (isConfig(result)) {
     return result as Config;

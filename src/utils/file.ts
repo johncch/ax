@@ -107,13 +107,13 @@ export async function fileExists(
 }
 
 // Function to ensure the directory exists
-export async function ensureDirectoryExistence(filePath) {
+export async function ensureDirectoryExistence(filePath: string) {
   const dirname = path.dirname(filePath);
   try {
     await access(dirname);
   } catch (err) {
-    await ensureDirectoryExistence(dirname);
     await mkdir(dirname);
+    await ensureDirectoryExistence(dirname);
   }
 }
 

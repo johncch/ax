@@ -64,6 +64,9 @@ export class AgentJob {
         });
 
         // Execute
+        if (options.dryRun) {
+          continue;
+        }
         const request = provider.createChatCompletionRequest(messages);
         const response = await request.execute();
 
