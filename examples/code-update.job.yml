@@ -28,7 +28,7 @@ jobs:
         content: |
           Generate code that checks the type of all interfaces in the code below. The function names should be of the form `isJobConfig` and use if else statements instead of chaining ternary operators.
 
-          Include logging before each failure check in the form of `log.debug?.log("<error message>")`.
+          Include logging before each failure check in the form of `Display.debug.log("<error message>")`.
 
           Cast into the correct type in the functions for types that inherits from others so that the typescript checker does not throw an error
 

@@ -1,10 +1,11 @@
 import { ProgramOptions } from "../index.js";
 import { Config } from "../utils/config.js";
 import { Using } from "../utils/job.js";
+import { AnthropicProvider } from "./anthropic.js";
 import { OpenAIProvider } from "./openai.js";
 
 export interface AIProvider {
-  createChatCompletionRequest(message: ChatItem[]): AIRequest;
+  createChatCompletionRequest(chat: Chat): AIRequest;
 }
 
 export interface AIRequest {
@@ -16,7 +17,7 @@ export type AIResponse = AISuccessResponse | AIErrorResponse;
 export interface AISuccessResponse {
   type: "success";
   id: string;
-  reason: string;
+  reason: AIProviderStopReason;
   message: ChatItem;
   model: string;
   usage: {
@@ -39,9 +40,49 @@ export interface AIErrorResponse {
   raw: any;
 }
 
-export interface ChatItem {
-  role: "system" | "user" | "assistant";
-  content: string | null;
+export enum AIProviderStopReason {
+  Stop,
+  Length,
+  FunctionCall,
+  Error,
+}
+
+export class ChatItem {
+  role: "assistant" | "user";
+  content: string;
+}
+
+export class Chat {
+  system: string;
+  messages: ChatItem[] = [];
+
+  addSystem(message: string) {
+    this.system = message;
+  }
+
+  addUser(message: string) {
+    this.messages.push({ role: "user", content: message });
+  }
+
+  addAssistant(message: string) {
+    this.messages.push({ role: "assistant", content: message });
+  }
+
+  toOpenAI() {
+    const systemMsg = {
+      role: "system" as const,
+      content: this.system,
+    };
+    return [systemMsg, ...this.messages];
+  }
+
+  toAnthropic() {
+    return { system: this.system, messages: this.messages };
+  }
+
+  toString() {
+    return JSON.stringify({ system: this.system, messages: this.messages });
+  }
 }
 
 export function getEngine(
@@ -51,6 +92,9 @@ export function getEngine(
 ): AIProvider | null {
   if (engine.engine == "openai") {
     return new OpenAIProvider(engine.model, config, options);
+  }
+  if (engine.engine == "anthropic") {
+    return new AnthropicProvider(engine.model, config);
   }
   return null;
 }

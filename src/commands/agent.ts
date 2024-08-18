@@ -1,16 +1,23 @@
 import { ProgramOptions } from "../index.js";
-import { readFile } from "node:fs/promises";
-import { AIProvider, AIResponse, ChatItem } from "../engines";
+import {
+  AIProvider,
+  AIProviderStopReason,
+  AIResponse,
+  Chat,
+  ChatItem,
+} from "../engines";
 import {
   FilePathInfo,
   replaceFilePattern,
   writeFileWithDirectories,
 } from "../utils/file";
 import { arrayify, friendly } from "../utils/utils.js";
-import { Job, Step } from "../utils/job";
+import { Job, Replace, Step } from "../utils/job";
 import { Display } from "../utils/display.js";
 import { Stats } from "../utils/stats";
 import { type UUID, randomUUID } from "node:crypto";
+import { glob } from "glob";
+import { fileReplacer, manyFilesReplacer } from "../utils/replace.js";
 
 export async function getAgentCommand(
   job: Job,
@@ -44,30 +51,26 @@ export class AgentJob {
     const { steps } = job;
 
     Display.progress.add(this.id, `[${friendly(this.id)}] Starting job`);
-    const messages: ChatItem[] = [];
+    const chat = new Chat();
+    let providerError: Error | undefined;
     for (const [index, step] of steps.entries()) {
       Display.progress.update(
         this.id,
-        `[${friendly(this.id)}] Processing step ${index}: ${step.role}`,
+        `[${friendly(this.id)}] Processing step ${index + 1}: ${step.role}`,
       );
       if (step.role === "system") {
-        messages.push({
-          role: step.role,
-          content: step.content,
-        });
+        chat.addSystem(step.content);
       } else if (step.role === "user") {
         // Input handling
         const content = await this.processInput(step);
-        messages.push({
-          role: step.role,
-          content,
-        });
+        chat.addUser(content);
 
         // Execute
         if (options.dryRun) {
+          Display.debug.log(chat);
           continue;
         }
-        const request = provider.createChatCompletionRequest(messages);
+        const request = provider.createChatCompletionRequest(chat);
         const response = await request.execute();
 
         // parse response and get decision
@@ -76,12 +79,12 @@ export class AgentJob {
         const outcomes = await this.handleResponse(step, response);
         const { action, message, error } = outcomes;
         if (action == "error") {
-          console.error(error);
+          providerError = error;
           break;
         }
         if (action == "continue") {
           if (message) {
-            messages.push(message);
+            chat.addAssistant(message.content);
           }
         }
         if (action == "tool-use") {
@@ -89,7 +92,12 @@ export class AgentJob {
         }
       }
     }
-    Display.progress.succeed(this.id, `[${friendly(this.id)}] complete`);
+    if (providerError) {
+      Display.progress.fail(this.id, `[${friendly(this.id)}] Failed`);
+      console.error(providerError);
+    } else {
+      Display.progress.succeed(this.id, `[${friendly(this.id)}] complete`);
+    }
   }
 
   async processInput(step: Step): Promise<string> {
@@ -97,16 +105,15 @@ export class AgentJob {
     if (step.replace) {
       const replacements = arrayify(step.replace);
       for (const r of replacements) {
-        const source = r.source ?? "variables";
-        if (source === "variables") {
-          content = content.replace(r.pattern, this.variables[r.name]);
-        } else if (source === "file") {
-          try {
-            const replacement = await readFile(r.name, "utf-8");
-            content = content.replace(r.pattern, replacement);
-          } catch (error) {
-            console.error(error);
-          }
+        switch (r.source) {
+          case "file":
+            content = await fileReplacer(content, r);
+            break;
+          case "many-files":
+            content = await manyFilesReplacer(content, r);
+            break;
+          default:
+            content = content.replace(r.pattern, this.variables[r.name]);
         }
       }
     }
@@ -119,32 +126,30 @@ export class AgentJob {
   ): Promise<{ action: string; message?: ChatItem; error?: Error }> {
     if (response.type == "success") {
       switch (response.reason) {
-        case "stop": {
+        case AIProviderStopReason.Stop: {
           await this.processResponse(step, response.message.content ?? "");
           return {
             action: "continue",
             message: response.message,
           };
         }
-        case "length": {
+        case AIProviderStopReason.Length: {
           return {
             action: "error",
             message: response.message,
             error: new Error(
-              "Incomplete model output due to `max_tokens` parameter or token limit",
+              "AXIS: Incomplete model output due to `max_tokens` parameter or token limit",
             ),
           };
         }
-        case "function_call": {
+        case AIProviderStopReason.FunctionCall: {
           // TODO
         }
         default: {
           return {
             action: "error",
             message: response.message,
-            error: new Error(
-              "Incomplete model output due to `max_tokens` parameter or token limit",
-            ),
+            error: new Error("AXIS: Unspecified error"),
           };
         }
       }

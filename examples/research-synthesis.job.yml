@@ -9,9 +9,9 @@ jobs:
     batch:
       - type: files
         input: ./input/*.txt
-        # skip-condition:
-        #   - folder: ./output/
-        #     contains: fileNameStem
+        skip-condition:
+          - folder: ./output/
+            contains: fileNameStem
 
     steps:
       - role: system

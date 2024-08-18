@@ -7,6 +7,8 @@ import { Display } from "./utils/display.js";
 import { getAgentCommand } from "./commands/agent.js";
 
 const program = new Command()
+  .name("ax")
+  .description("A CLI tool for running AI jobs")
   .version("1.0.0")
   .option(
     "--dry-run",
@@ -39,7 +41,7 @@ try {
   config = await getConfig(options.config ?? null, options);
   jobConfig = await getJob(options.job ?? null, options);
 } catch (e) {
-  console.error(`${e}`);
+  Display.debug?.log(e.stack);
   console.error(`${e.stack}`);
   program.outputHelp();
   process.exit(1);
@@ -50,11 +52,13 @@ try {
  */
 const engine = getEngine(jobConfig.using, config, options);
 if (!engine) {
-  console.error(`AI Provider is not defined. Please check your job file.`);
+  console.error(`AI Provider is not valid. Please check your job file.`);
+  program.outputHelp();
   process.exit(1);
 }
 
 Display.info.group("All systems operational. Running job...");
+const startTime = Date.now();
 if (options.dryRun) {
   Display.info.log("Dry run mode enabled. No API calls will be made.");
 }
@@ -75,6 +79,8 @@ for (const [jobName, job] of Object.entries(jobConfig.jobs)) {
 }
 
 Display.info.group("Usage");
+Display.info.log(`Total run time: ${Date.now() - startTime}ms`);
 Display.info.log(`Input tokens: ${stats.in} `);
 Display.info.log(`Output tokens: ${stats.out} `);
+
 Display.info.group("Complete. Goodbye");

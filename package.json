@@ -1,11 +1,12 @@
 {
-  "name": "ai-executor",
-  "version": "1.0.0",
-  "description": "",
+  "name": "axis",
+  "version": "0.1.0",
+  "description": "axle is a command line tool for running workflows against LLM APIs.",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
-    "ax": "./dist/index.js"
+    "ax": "./dist/index.js",
+    "axis": "./dist/index.js"
   },
   "scripts": {
     "start": "tsx ./src/index.ts",
@@ -16,8 +17,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@types/spinnies": "^0.5.3",
+    "@anthropic-ai/sdk": "^0.26.1",
     "@commander-js/extra-typings": "^12.1.0",
+    "@types/spinnies": "^0.5.3",
     "chalk": "^5.3.0",
     "commander": "^12.1.0",
     "glob": "^10.4.5",
