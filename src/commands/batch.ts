@@ -1,13 +1,13 @@
 import { glob } from "glob";
 import { readFile } from "node:fs/promises";
-import { AIProvider } from "../engines";
+import { AIProvider } from "../providers/types.js";
 import { ProgramOptions } from "../index.js";
-import { fileExists, FilePathInfo, pathToComponents } from "../utils/file";
+import { fileExists, FilePathInfo, pathToComponents } from "../utils/file.js";
 import { arrayify } from "../utils/utils.js";
-import { BatchJob, SkipOptions } from "../utils/job";
+import { BatchJob, SkipOptions } from "../utils/job.js";
 import { Display } from "../utils/display.js";
-import { Stats } from "../utils/stats";
-import { getAgentCommand } from "./agent";
+import { Stats } from "../utils/stats.js";
+import { getAgentCommand } from "./agent.js";
 import { type UUID, randomUUID } from "node:crypto";
 
 interface Run {

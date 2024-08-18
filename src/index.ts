@@ -1,6 +1,6 @@
 import { Command } from "@commander-js/extra-typings";
 import { getBatchCommand } from "./commands/batch.js";
-import { getEngine } from "./engines/index.js";
+import { getEngine } from "./providers/index.js";
 import { getConfig, type Config } from "./utils/config.js";
 import { getJob, isBatchJob, JobConfig } from "./utils/job.js";
 import { Display } from "./utils/display.js";

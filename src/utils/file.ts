@@ -1,7 +1,6 @@
 import { glob } from "glob";
 import { readFile, writeFile, mkdir, access } from "node:fs/promises";
-import { resolve } from "node:path";
-import path from "path";
+import { resolve, dirname } from "node:path";
 
 interface LoadFileResults {
   content: string;
@@ -108,12 +107,12 @@ export async function fileExists(
 
 // Function to ensure the directory exists
 export async function ensureDirectoryExistence(filePath: string) {
-  const dirname = path.dirname(filePath);
+  const dirName = dirname(filePath);
   try {
-    await access(dirname);
+    await access(dirName);
   } catch (err) {
-    await mkdir(dirname);
-    await ensureDirectoryExistence(dirname);
+    await mkdir(dirName);
+    await ensureDirectoryExistence(dirName);
   }
 }
 

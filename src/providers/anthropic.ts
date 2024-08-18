@@ -7,7 +7,7 @@ import {
   AIRequest,
   AIResponse,
   Chat,
-} from "./index.js";
+} from "./types.js";
 
 export class AnthropicProvider implements AIProvider {
   name = "Anthropic";

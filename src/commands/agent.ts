@@ -1,23 +1,22 @@
-import { ProgramOptions } from "../index.js";
+import { type UUID, randomUUID } from "node:crypto";
 import {
   AIProvider,
   AIProviderStopReason,
   AIResponse,
   Chat,
   ChatItem,
-} from "../engines";
+} from "../providers/types.js";
+import { ProgramOptions } from "../index.js";
+import { Display } from "../utils/display.js";
 import {
   FilePathInfo,
   replaceFilePattern,
   writeFileWithDirectories,
-} from "../utils/file";
-import { arrayify, friendly } from "../utils/utils.js";
-import { Job, Replace, Step } from "../utils/job";
-import { Display } from "../utils/display.js";
-import { Stats } from "../utils/stats";
-import { type UUID, randomUUID } from "node:crypto";
-import { glob } from "glob";
+} from "../utils/file.js";
+import { Job, Step } from "../utils/job.js";
 import { fileReplacer, manyFilesReplacer } from "../utils/replace.js";
+import { Stats } from "../utils/stats.js";
+import { arrayify, friendly } from "../utils/utils.js";
 
 export async function getAgentCommand(
   job: Job,

@@ -1,6 +1,6 @@
 import YAML from "yaml";
 import { ProgramOptions } from "../index.js";
-import { loadFile } from "./file";
+import { loadFile } from "./file.js";
 import { Display } from "./display.js";
 
 /* Defaults */

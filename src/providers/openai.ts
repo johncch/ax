@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { ProgramOptions } from "../index.js";
-import { Config } from "../utils/config";
+import { Config } from "../utils/config.js";
 import { Display } from "../utils/display.js";
 import {
   AIProvider,
@@ -8,7 +8,7 @@ import {
   AIRequest,
   AIResponse,
   Chat,
-} from "./index.js";
+} from "./types.js";
 
 export class OpenAIProvider implements AIProvider {
   name = "OpenAI";
