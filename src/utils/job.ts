@@ -1,7 +1,7 @@
 import YAML from "yaml";
 import { ProgramOptions } from "../index.js";
-import { loadFile } from "./file.js";
 import { Display } from "./display.js";
+import { loadFile } from "./file.js";
 
 /* Defaults */
 const DEFAULT_JOB_NAME = "ax.job";
@@ -18,8 +18,10 @@ export interface Using {
   model?: string;
 }
 
-export interface Job {
-  type: "agent" | "batch";
+export type Job = AgentJob | BatchJob;
+
+export interface AgentJob {
+  type: "agent";
   steps: Step[];
 }
 
@@ -28,20 +30,33 @@ export interface SkipOptions {
   contains: string;
 }
 
-export interface BatchJob extends Job {
+export interface BatchJob {
   type: "batch";
   batch: {
     type: "files";
     input: string;
     "skip-condition"?: SkipOptions[];
   }[];
+  steps: Step[];
 }
 
-export interface Step {
-  role: "system" | "user";
+export type Step = ChatAction | WriteToDiskAction | SaveVarAction;
+
+export interface ChatAction {
+  action: "chat";
+  system?: string;
   content: string;
-  response?: any;
   replace?: Replace[];
+}
+
+export interface WriteToDiskAction {
+  action: "write-to-disk";
+  output: string;
+}
+
+export interface SaveVarAction {
+  action: "save-to-variables";
+  name: string;
 }
 
 export type Replace = ReplaceManyFiles | ReplaceFile | ReplaceVariables;
@@ -97,256 +112,300 @@ export async function getJob(
 }
 
 /* Helpers */
+
 export function isJobConfig(obj: any): obj is JobConfig {
-  if (!obj || typeof obj !== "object") {
-    Display.debug.log("isJobConfig: obj is not an object");
+  if (typeof obj !== "object") {
+    Display.debug.log("JobConfig: Not an object");
     return false;
   }
-
   if (!isUsing(obj.using)) {
-    Display.debug.log("isJobConfig: using property is invalid");
+    Display.debug.log("JobConfig: Invalid 'using' property");
     return false;
   }
-
   if (typeof obj.jobs !== "object") {
-    Display.debug.log("isJobConfig: jobs is not an object");
+    Display.debug.log("JobConfig: 'jobs' property is not an object");
     return false;
   }
-
-  for (const job of Object.values(obj.jobs)) {
-    if (!isJob(job)) {
-      Display.debug.log("isJobConfig: invalid job in jobs object");
+  for (const key in obj.jobs) {
+    if (!isJob(obj.jobs[key])) {
+      Display.debug.log(`JobConfig: Invalid job at key '${key}'`);
       return false;
     }
   }
-
   return true;
 }
 
 export function isUsing(obj: any): obj is Using {
-  if (!obj || typeof obj !== "object") {
-    Display.debug.log("isUsing: obj is not an object");
+  if (typeof obj !== "object") {
+    Display.debug.log("Using: Not an object");
     return false;
   }
-
-  if (obj.engine !== "openai" && obj.engine !== "anthropic") {
-    Display.debug.log("isUsing: invalid engine");
+  if (
+    typeof obj.engine !== "string" ||
+    (obj.engine !== "openai" && obj.engine !== "anthropic")
+  ) {
+    Display.debug.log("Using: Invalid 'engine' property");
     return false;
   }
-
   if (obj.model !== undefined && typeof obj.model !== "string") {
-    Display.debug.log("isUsing: model is defined but not a string");
+    Display.debug.log("Using: Invalid 'model' property");
     return false;
   }
-
   return true;
 }
 
 export function isJob(obj: any): obj is Job {
-  if (!obj || typeof obj !== "object") {
-    Display.debug.log("isJob: obj is not an object");
+  if (typeof obj !== "object") {
+    Display.debug.log("Job: Not an object");
     return false;
   }
+  if (isAgentJob(obj) || isBatchJob(obj)) {
+    return true;
+  }
+  Display.debug.log("Job: Neither AgentJob nor BatchJob");
+  return false;
+}
 
-  if (obj.type !== "agent" && obj.type !== "batch") {
-    Display.debug.log("isJob: invalid job type");
+export function isAgentJob(obj: any): obj is AgentJob {
+  if (typeof obj !== "object") {
+    Display.debug.log("AgentJob: Not an object");
     return false;
   }
-
+  if (obj.type !== "agent") {
+    Display.debug.log("AgentJob: Invalid 'type' property");
+    return false;
+  }
   if (!Array.isArray(obj.steps)) {
-    Display.debug.log("isJob: steps is not an array");
+    Display.debug.log("AgentJob: 'steps' is not an array");
     return false;
   }
-
   for (const step of obj.steps) {
     if (!isStep(step)) {
-      Display.debug.log("isJob: invalid step in steps array");
+      Display.debug.log("AgentJob: Invalid step in 'steps' array");
       return false;
     }
   }
-
   return true;
 }
 
 export function isSkipOptions(obj: any): obj is SkipOptions {
-  if (!obj || typeof obj !== "object") {
-    Display.debug.log("isSkipOptions: obj is not an object");
+  if (typeof obj !== "object") {
+    Display.debug.log("SkipOptions: Not an object");
     return false;
   }
-
   if (typeof obj.folder !== "string") {
-    Display.debug.log("isSkipOptions: folder is not a string");
+    Display.debug.log("SkipOptions: Invalid 'folder' property");
     return false;
   }
-
   if (typeof obj.contains !== "string") {
-    Display.debug.log("isSkipOptions: contains is not a string");
+    Display.debug.log("SkipOptions: Invalid 'contains' property");
     return false;
   }
-
   return true;
 }
 
 export function isBatchJob(obj: any): obj is BatchJob {
-  if (!isJob(obj)) {
-    Display.debug.log("isBatchJob: obj is not a valid Job");
+  if (typeof obj !== "object") {
+    Display.debug.log("BatchJob: Not an object");
     return false;
   }
-
-  obj = obj as BatchJob;
-
   if (obj.type !== "batch") {
-    Display.debug.log("isBatchJob: job type is not 'batch'");
+    Display.debug.log("BatchJob: Invalid 'type' property");
     return false;
   }
-
   if (!Array.isArray(obj.batch)) {
-    Display.debug.log("isBatchJob: batch is not an array");
+    Display.debug.log("BatchJob: 'batch' is not an array");
     return false;
   }
-
-  for (const batchItem of obj.batch) {
-    if (batchItem.type !== "files") {
-      Display.debug.log("isBatchJob: batch item type is not 'files'");
+  for (const item of obj.batch) {
+    if (typeof item !== "object") {
+      Display.debug.log("BatchJob: Invalid batch item");
       return false;
     }
-
-    if (typeof batchItem.input !== "string") {
-      Display.debug.log("isBatchJob: input is not a string");
+    if (item.type !== "files") {
+      Display.debug.log("BatchJob: Invalid batch item type");
       return false;
     }
-
-    if (batchItem["skip-condition"] !== undefined) {
-      if (!Array.isArray(batchItem["skip-condition"])) {
-        Display.debug.log("isBatchJob: skip-condition is not an array");
+    if (typeof item.input !== "string") {
+      Display.debug.log("BatchJob: Invalid 'input' property in batch item");
+      return false;
+    }
+    if (item["skip-condition"] !== undefined) {
+      if (!Array.isArray(item["skip-condition"])) {
+        Display.debug.log("BatchJob: 'skip-condition' is not an array");
         return false;
       }
-
-      for (const skipCondition of batchItem["skip-condition"]) {
-        if (!isSkipOptions(skipCondition)) {
-          Display.debug.log("isBatchJob: invalid skip-condition");
+      for (const skipOption of item["skip-condition"]) {
+        if (!isSkipOptions(skipOption)) {
+          Display.debug.log(
+            "BatchJob: Invalid skip option in 'skip-condition'",
+          );
           return false;
         }
       }
     }
   }
-
+  if (!Array.isArray(obj.steps)) {
+    Display.debug.log("BatchJob: 'steps' is not an array");
+    return false;
+  }
+  for (const step of obj.steps) {
+    if (!isStep(step)) {
+      Display.debug.log("BatchJob: Invalid step in 'steps' array");
+      return false;
+    }
+  }
   return true;
 }
 
 export function isStep(obj: any): obj is Step {
-  if (!obj || typeof obj !== "object") {
-    Display.debug.log("isStep: obj is not an object");
+  if (typeof obj !== "object") {
+    Display.debug.log("Step: Not an object");
     return false;
   }
+  if (isChatAction(obj) || isWriteToDiskAction(obj) || isSaveVarAction(obj)) {
+    return true;
+  }
+  Display.debug.log("Step: Not a valid Step type");
+  return false;
+}
 
-  if (obj.role !== "system" && obj.role !== "user") {
-    Display.debug.log("isStep: invalid step type");
+export function isChatAction(obj: any): obj is ChatAction {
+  if (typeof obj !== "object") {
+    Display.debug.log("ChatAction: Not an object");
     return false;
   }
-
+  if (obj.action !== "chat") {
+    Display.debug.log("ChatAction: Invalid 'action' property");
+    return false;
+  }
+  if (obj.system !== undefined && typeof obj.system !== "string") {
+    Display.debug.log("ChatAction: Invalid 'system' property");
+    return false;
+  }
   if (typeof obj.content !== "string") {
-    Display.debug.log("isStep: message is not a string");
+    Display.debug.log("ChatAction: Invalid 'content' property");
     return false;
   }
+  if (obj.replace !== undefined) {
+    if (!Array.isArray(obj.replace)) {
+      Display.debug.log("ChatAction: 'replace' is not an array");
+      return false;
+    }
+    for (const replace of obj.replace) {
+      if (!isReplace(replace)) {
+        Display.debug.log("ChatAction: Invalid replace in 'replace' array");
+        return false;
+      }
+    }
+  }
+  return true;
+}
 
-  if (obj.response !== undefined && typeof obj.response !== "object") {
-    Display.debug.log("isStep: response property is missing");
+export function isWriteToDiskAction(obj: any): obj is WriteToDiskAction {
+  if (typeof obj !== "object") {
+    Display.debug.log("WriteToDiskAction: Not an object");
     return false;
   }
-
-  if (obj.replace !== undefined && typeof obj.replace !== "object") {
-    Display.debug.log("isStep: replace is defined but not an object");
+  if (obj.action !== "write-to-disk") {
+    Display.debug.log("WriteToDiskAction: Invalid 'action' property");
     return false;
   }
+  if (typeof obj.output !== "string") {
+    Display.debug.log("WriteToDiskAction: Invalid 'output' property");
+    return false;
+  }
+  return true;
+}
 
+export function isSaveVarAction(obj: any): obj is SaveVarAction {
+  if (typeof obj !== "object") {
+    Display.debug.log("SaveVarAction: Not an object");
+    return false;
+  }
+  if (obj.action !== "save-to-variables") {
+    Display.debug.log("SaveVarAction: Invalid 'action' property");
+    return false;
+  }
+  if (typeof obj.name !== "string") {
+    Display.debug.log("SaveVarAction: Invalid 'name' property");
+    return false;
+  }
   return true;
 }
 
 export function isReplace(obj: any): obj is Replace {
-  if (!obj || typeof obj !== "object") {
-    Display.debug.log("isReplace: obj is not an object");
+  if (typeof obj !== "object") {
+    Display.debug.log("Replace: Not an object");
     return false;
   }
-
-  if ("pattern" in obj && "source" in obj && "name" in obj) {
+  if (
+    isReplaceManyFiles(obj) ||
+    isReplaceFile(obj) ||
+    isReplaceVariables(obj)
+  ) {
     return true;
   }
-
-  Display.debug.log("isReplace: invalid replace object");
+  Display.debug.log("Replace: Not a valid Replace type");
   return false;
 }
 
 export function isReplaceVariables(obj: any): obj is ReplaceVariables {
-  if (!obj || typeof obj !== "object") {
-    Display.debug.log("isReplaceVariables: obj is not an object");
+  if (typeof obj !== "object") {
+    Display.debug.log("ReplaceVariables: Not an object");
     return false;
   }
-
   if (typeof obj.pattern !== "string") {
-    Display.debug.log("isReplaceVariables: pattern is not a string");
+    Display.debug.log("ReplaceVariables: Invalid 'pattern' property");
     return false;
   }
-
   if (obj.source !== undefined && obj.source !== "variables") {
-    Display.debug.log("isReplaceVariables: source is not 'variables'");
+    Display.debug.log("ReplaceVariables: Invalid 'source' property");
     return false;
   }
-
   if (typeof obj.name !== "string") {
-    Display.debug.log("isReplaceVariables: name is not a string");
+    Display.debug.log("ReplaceVariables: Invalid 'name' property");
     return false;
   }
-
   return true;
 }
 
 export function isReplaceFile(obj: any): obj is ReplaceFile {
-  if (!obj || typeof obj !== "object") {
-    Display.debug.log("isReplaceFile: obj is not an object");
+  if (typeof obj !== "object") {
+    Display.debug.log("ReplaceFile: Not an object");
     return false;
   }
-
   if (typeof obj.pattern !== "string") {
-    Display.debug.log("isReplaceFile: pattern is not a string");
+    Display.debug.log("ReplaceFile: Invalid 'pattern' property");
     return false;
   }
-
   if (obj.source !== "file") {
-    Display.debug.log("isReplaceFile: source is not 'file'");
+    Display.debug.log("ReplaceFile: Invalid 'source' property");
     return false;
   }
-
   if (typeof obj.name !== "string") {
-    Display.debug.log("isReplaceFile: name is not a string");
+    Display.debug.log("ReplaceFile: Invalid 'name' property");
     return false;
   }
-
   return true;
 }
 
 export function isReplaceManyFiles(obj: any): obj is ReplaceManyFiles {
-  if (!obj || typeof obj !== "object") {
-    Display.debug.log("isReplaceManyFiles: obj is not an object");
+  if (typeof obj !== "object") {
+    Display.debug.log("ReplaceManyFiles: Not an object");
     return false;
   }
-
   if (typeof obj.pattern !== "string") {
-    Display.debug.log("isReplaceManyFiles: pattern is not a string");
+    Display.debug.log("ReplaceManyFiles: Invalid 'pattern' property");
     return false;
   }
-
   if (obj.source !== "many-files") {
-    Display.debug.log("isReplaceManyFiles: source is not 'many-files'");
+    Display.debug.log("ReplaceManyFiles: Invalid 'source' property");
     return false;
   }
-
   if (typeof obj.name !== "string" && !Array.isArray(obj.name)) {
-    Display.debug.log(
-      "isReplaceManyFiles: name is not a string or an array of strings",
-    );
+    Display.debug.log("ReplaceManyFiles: Invalid 'name' property");
     return false;
   }
-
   return true;
 }

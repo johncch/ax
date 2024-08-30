@@ -1,6 +1,6 @@
 import { glob } from "glob";
-import { readFile, writeFile, mkdir, access } from "node:fs/promises";
-import { resolve, dirname } from "node:path";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 
 interface LoadFileResults {
   content: string;
@@ -117,7 +117,10 @@ export async function ensureDirectoryExistence(filePath: string) {
 }
 
 // Function to write the file
-export async function writeFileWithDirectories(filePath, content) {
+export async function writeFileWithDirectories(
+  filePath: string,
+  content: string,
+) {
   await ensureDirectoryExistence(filePath);
   await writeFile(filePath, content);
 }

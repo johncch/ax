@@ -1,15 +1,13 @@
 using:
-  engine: openai
-  model: gpt-4o
+  engine: anthropic
 
 jobs:
   update-code:
     type: agent
     steps:
-      - role: system
-        content: |
+      - action: chat
+        system: |
           You are a software developer tasked with updating the code for a command line typescript application.
-      - role: user
         content: |
           Extract the all the interfaces from this typescript file related to the `JobConfig` interface and all `Job` subclasses.
           Return only the code and nothing else. Please do not include any preamble or explanation in the response.
@@ -21,10 +19,7 @@ jobs:
           - pattern: ${input}
             source: file
             name: ./src/utils/job.ts
-        response:
-          - action: save-to-variables
-            output: functions
-      - role: user
+      - action: chat
         content: |
           Generate code that checks the type of all interfaces in the code below. The function names should be of the form `isJobConfig` and use if else statements instead of chaining ternary operators.
 
@@ -39,7 +34,6 @@ jobs:
           ${input}
         replace:
           - pattern: ${input}
-            name: functions
-        response:
-          - action: write-to-disk
-            output: ./output/job-types.ts
+            name: input
+      - action: write-to-disk
+        output: ./output/job-types.ts

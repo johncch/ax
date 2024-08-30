@@ -6,12 +6,11 @@ jobs:
   update-readme:
     type: agent
     steps:
-      - role: system
+      - action: chat
+        system: |
+          You are a technical writer tasked with updating the README.md file for an open source project hosted on GitHub. You are good at writing documentation for software developers, and excel in writing succint but useful documents.
         content: |
-          You are a technical writer tasked with updating the README.md file for an open source project hosted on GitHub.
-      - role: user
-        content: |
-          Write the readme file in the GitHub format for axle. axle stands for AI eXecution and Logic Engine. Write the readme assuming that the user is You.
+          Write the readme file in the GitHub format for axle. axle stands for AI eXecution and Logic Engine.
 
           axle is a command line tool for running workflows against LLM APIs. Users can create complex multi-step workflows and interact with the file system. As such, the tool is useful for complex interactions and automating repetitive tasks.
 
@@ -22,6 +21,8 @@ jobs:
             - Configuration format
             - Job file format
 
+          For the job file format section, please mention the different types of steps that can be taken, and the options for each type of step.
+
           The source code for the repository is here: ${input}
         replace:
           - pattern: ${input}
@@ -30,6 +31,5 @@ jobs:
               - ./src/**/*.ts
               - ./examples/*.yml
               - ./package.json
-        response:
-          - action: write-to-disk
-            output: ./output/readme.md
+      - action: write-to-disk
+        output: ./output/readme.md

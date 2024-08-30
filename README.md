@@ -1,99 +1,138 @@
-# axle (AI eXecution and Logic Engine)
+# axle: AI eXecution and Logic Engine
+
+axle is a powerful command-line tool designed for running complex workflows against Large Language Model (LLM) APIs. It allows users to create and execute multi-step workflows, interact with the file system, and automate repetitive tasks.
 
 ## Introduction
 
-axle (AI eXecution and Logic Engine) is a powerful command-line tool designed for running complex workflows against Language Model (LLM) APIs. It enables users to create and execute multi-step workflows while interacting with the file system, making it an ideal solution for automating repetitive tasks and handling complex interactions with AI models.
-
-With axle, you can:
-- Define and run sophisticated AI-powered workflows
-- Interact with multiple AI providers (currently supporting OpenAI and Anthropic)
-- Process batch operations on multiple files
-- Customize input and output handling
-- Integrate AI capabilities into your existing workflows and tools
-
-Whether you're a developer, researcher, or content creator, axle provides a flexible and extensible platform for leveraging AI in your projects.
+axle (AI eXecution and Logic Engine) is a versatile CLI tool that enables users to define and run sophisticated AI-powered workflows. It supports multiple LLM providers, offers flexible job configurations, and provides powerful file manipulation capabilities. Whether you're doing batch processing, research synthesis, or code generation, axle streamlines your AI-assisted workflows.
 
 ## Installation
 
-To install axle, you need to have Node.js and npm (Node Package Manager) installed on your system. Once you have these prerequisites, you can install axle using the following command:
+To install axle, follow these steps:
 
-```bash
-npm install -g axis
-```
-
-This will install axle globally on your system, allowing you to use the `ax` or `axis` command from any directory.
+1. Ensure you have Node.js installed on your system.
+2. Clone the axle repository:
+   ```
+   git clone https://github.com/your-repo/axle.git
+   ```
+3. Navigate to the axle directory:
+   ```
+   cd axle
+   ```
+4. Install dependencies:
+   ```
+   npm install
+   ```
+5. Build the project:
+   ```
+   npm run build
+   ```
+6. Link the CLI globally (optional):
+   ```
+   npm link
+   ```
 
 ## Usage
 
-After installation, you can use axle by running the `ax` or `axis` command followed by various options and arguments. Here's the basic syntax:
+To use axle, you need to create a job file and a configuration file. Here's a basic example:
 
-```bash
-ax [options] [command]
-```
+1. Create a configuration file named `ax.config.yml`:
+   ```yaml
+   providers:
+     openai:
+       api-key: your-openai-api-key
+     anthropic:
+       api-key: your-anthropic-api-key
+   ```
 
-Common options include:
+2. Create a job file, e.g., `example.job.yml`:
+   ```yaml
+   using:
+     engine: openai
+     model: gpt-4o
 
-- `--dry-run`: Run the application without executing against the AI providers
-- `-c, --config <path>`: Specify the path to the config file
-- `-j, --job <path>`: Specify the path to the job file
-- `--no-log`: Do not write the output to a log file
-- `-d, --debug`: Print additional debug information
+   jobs:
+     example-job:
+       type: agent
+       steps:
+         - action: chat
+           system: "You are a helpful assistant."
+           content: "Hello, how can I help you today?"
+         - action: write-to-disk
+           output: ./output/response.txt
+   ```
 
-To run a specific job defined in your job file:
-
-```bash
-ax -j path/to/your/job.yml
-```
+3. Run the job:
+   ```
+   ax --job example.job.yml
+   ```
 
 ## Configuration Format
 
-axle uses a configuration file to manage API keys and other settings. The default name for this file is `ax.config.yml` (or `.json`), but you can specify a different file using the `-c` option.
-
-Here's an example of the configuration file format:
+The configuration file (`ax.config.yml`) specifies the API keys for different providers. It follows this structure:
 
 ```yaml
 providers:
-  openai:
-    api-key: "your-openai-api-key"
-  anthropic:
-    api-key: "your-anthropic-api-key"
+  provider_name:
+    api-key: your_api_key
+    model: optional_default_model
 ```
+
+Supported providers include `openai` and `anthropic`.
 
 ## Job File Format
 
-Job files in axle define the workflows you want to execute. They are typically written in YAML format and consist of two main sections: `using` and `jobs`.
+Job files define the workflows to be executed. They are written in YAML and consist of the following main sections:
 
-Here's an example of a job file structure:
+1. `using`: Specifies the AI provider and model to use.
+2. `jobs`: Defines one or more jobs to be executed.
 
-```yaml
-using:
-  engine: openai
-  model: gpt-4o
+Each job can be of type `agent` or `batch` and consists of a series of steps.
 
-jobs:
-  job-name:
-    type: agent
-    steps:
-      - role: system
-        content: "System message content"
-      - role: user
-        content: "User message content"
-        replace:
-          - pattern: "${input}"
-            name: content
-        response:
-          - action: write-to-disk
-            output: ./output/*.txt
-```
+### Step Types
 
-Key components of a job file:
+1. Chat Action:
+   ```yaml
+   action: chat
+   system: Optional system message
+   content: User message or prompt
+   replace: Optional replacements
+   ```
 
-- `using`: Specifies the AI provider and model to use
-- `jobs`: Defines one or more jobs, each with its own set of steps
-- `steps`: Describes the sequence of interactions with the AI model
-- `replace`: Allows for dynamic content replacement in messages
-- `response`: Defines actions to take with the AI's response, such as writing to a file or saving to variables
+2. Write to Disk Action:
+   ```yaml
+   action: write-to-disk
+   output: Path to output file
+   ```
 
-axle supports both single-run "agent" jobs and "batch" jobs that process multiple files. The job file format is flexible and allows for complex workflows, including file system interactions and variable management.
+3. Save to Variables Action:
+   ```yaml
+   action: save-to-variables
+   name: Variable name to save content
+   ```
 
-For more detailed information on job file formats and advanced usage, please refer to the examples provided in the repository.
+### Replace Options
+
+Replace options allow dynamic content insertion:
+
+- Variables:
+  ```yaml
+  pattern: ${variable_name}
+  name: variable_name
+  ```
+
+- File:
+  ```yaml
+  pattern: ${pattern_to_replace}
+  source: file
+  name: path/to/file.txt
+  ```
+
+- Many Files:
+  ```yaml
+  pattern: ${pattern_to_replace}
+  source: many-files
+  name: glob/pattern/*.txt
+  ```
+
+axle provides a flexible and powerful way to create complex AI workflows, making it an invaluable tool for developers and researchers working with LLMs.

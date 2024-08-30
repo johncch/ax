@@ -9,13 +9,13 @@ jobs:
     batch:
       - type: files
         input: ./input/*.txt
-        skip-condition:
-          - folder: ./output/
-            contains: fileNameStem
+        # skip-condition:
+        #   - folder: ./output/
+        #     contains: fileNameStem
 
     steps:
-      - role: system
-        content: |
+      - action: chat
+        system: |
           You are a design researcher trying to understand the pain points of customers for a potential startup opportunity. Your goal is to synthesize 30 minute to 1 hour long conversation down to insights represented by "I wish..." or "I want..." statements written in the perspective of the interviewee. If there are no expressed wishes or wants, do not generate them.
 
           Every conversation will have an interviewer and interviewee. We are not interested in statements made by the interviewer.
@@ -29,8 +29,6 @@ jobs:
           ## What is the topic being discussed:
 
           ## Wish and Wants (Not more than 5):
-
-      - role: user
         content: |
           Here is the transcript. Please generate the output as directed
 
@@ -38,6 +36,5 @@ jobs:
         replace:
           - pattern: "${input}"
             name: content
-        response:
-          - action: write-to-disk
-            output: ./output/*.txt
+      - action: write-to-disk
+        output: ./output/*.txt
