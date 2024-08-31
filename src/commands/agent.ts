@@ -13,12 +13,8 @@ import {
 import { Stats } from "../utils/stats.js";
 import { friendly } from "../utils/utils.js";
 
-export async function getAgentCommand(
-  job: Job,
-  provider: AIProvider,
-  variables: Record<string, string> = {},
-) {
-  const agentJob = new AgentJob(job, provider, variables);
+export async function getAgentCommand(job: Job, provider: AIProvider) {
+  const agentJob = new AgentJob(job, provider);
   return agentJob;
 }
 
@@ -27,20 +23,18 @@ export class AgentJob {
   id: UUID;
   job: Job;
   provider: AIProvider;
-  variables: Record<string, any>;
 
-  constructor(
-    job: Job,
-    provider: AIProvider,
-    variables: Record<string, string> = {},
-  ) {
+  constructor(job: Job, provider: AIProvider) {
     this.id = randomUUID();
     this.job = job;
     this.provider = provider;
-    this.variables = variables;
   }
 
-  async execute(options: ProgramOptions, stats: Stats) {
+  async execute(
+    variables: Record<string, any>,
+    options: ProgramOptions,
+    stats: Stats,
+  ) {
     const { job, provider } = this;
     const { steps } = job;
 
@@ -58,7 +52,7 @@ export class AgentJob {
           chat,
           provider,
           stats,
-          variables: this.variables,
+          variables,
           options,
         });
         if (error) {
@@ -70,13 +64,13 @@ export class AgentJob {
       } else if (isSaveVarAction(step)) {
         execSaveToVariables({
           action: step,
-          variables: this.variables,
+          variables,
           options,
         });
       } else if (isWriteToDiskAction(step)) {
         await execWriteToDisk({
           action: step,
-          variables: this.variables,
+          variables,
           options,
         });
       }

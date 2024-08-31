@@ -1,27 +1,23 @@
 import { glob } from "glob";
-import { readFile } from "node:fs/promises";
-import { AIProvider } from "../providers/types.js";
-import { ProgramOptions } from "../index.js";
-import { fileExists, FilePathInfo, pathToComponents } from "../utils/file.js";
-import { arrayify } from "../utils/utils.js";
-import { BatchJob, SkipOptions } from "../utils/job.js";
-import { Display } from "../utils/display.js";
-import { Stats } from "../utils/stats.js";
-import { getAgentCommand } from "./agent.js";
 import { type UUID, randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { ProgramOptions } from "../index.js";
+import { AIProvider } from "../providers/types.js";
+import { Display } from "../utils/display.js";
+import { fileExists, FilePathInfo, pathToComponents } from "../utils/file.js";
+import { BatchJob, SkipOptions } from "../utils/job.js";
+import { Stats } from "../utils/stats.js";
+import { arrayify } from "../utils/utils.js";
+import { getAgentCommand } from "./agent.js";
 
 interface Run {
   job: BatchJob;
   variables: Record<string, any>;
 }
 
-export async function getBatchCommand(
-  job: BatchJob,
-  engine: AIProvider,
-  options: ProgramOptions,
-) {
+export async function getBatchCommand(job: BatchJob, engine: AIProvider) {
   const batchJob = new BatchCommand(job, engine);
-  await batchJob.setup(options);
+  await batchJob.setup();
   return batchJob;
 }
 
@@ -37,7 +33,7 @@ class BatchCommand {
     this.provider = engine;
   }
 
-  async setup(options) {
+  async setup() {
     if (!this.job.batch) {
       throw new Error("Batch job is missing batch field");
     }
@@ -71,7 +67,11 @@ class BatchCommand {
     }
   }
 
-  async execute(options: ProgramOptions, stats: Stats) {
+  async execute(
+    variables: Record<string, any>,
+    options: ProgramOptions,
+    stats: Stats,
+  ) {
     const requests: Promise<void>[] = [];
     const ongoingRequests: Promise<void>[] = [];
     if (this.runs.length == 0) {
@@ -86,13 +86,13 @@ class BatchCommand {
     for (let idx = 0; idx < this.runs.length; idx++) {
       const run = this.runs[idx];
       const p = new Promise<void>(async (resolve, reject) => {
-        const agent = await getAgentCommand(
-          run.job,
-          this.provider,
-          run.variables,
-        );
+        const agent = await getAgentCommand(run.job, this.provider);
         try {
-          await agent.execute(options, stats);
+          await agent.execute(
+            { ...run.variables, ...variables },
+            options,
+            stats,
+          );
           resolve();
         } catch (e) {
           console.error(e);

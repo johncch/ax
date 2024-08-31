@@ -17,4 +17,4 @@ jobs:
           You have access to these tools: websearch. What would be the next steps be?
         replace:
           - pattern: "${input}"
-            name: $1
+            name: name

@@ -1,13 +1,13 @@
 import { Command } from "@commander-js/extra-typings";
+import { getAgentCommand } from "./commands/agent.js";
 import { getBatchCommand } from "./commands/batch.js";
 import { getEngine } from "./providers/index.js";
 import { getConfig, type Config } from "./utils/config.js";
-import { getJob, isBatchJob, JobConfig } from "./utils/job.js";
 import { Display } from "./utils/display.js";
-import { getAgentCommand } from "./commands/agent.js";
+import { getJob, isBatchJob, JobConfig } from "./utils/job.js";
 
 const program = new Command()
-  .name("ax")
+  .name("axle")
   .description("A CLI tool for running AI jobs")
   .version("1.0.0")
   .option(
@@ -17,11 +17,23 @@ const program = new Command()
   .option("-c, --config <path>", "Path to the config file")
   .option("-j, --job <path>", "Path to the job file")
   .option("--no-log", "Do not write the output to a log file")
-  .option("-d, --debug", "Print additional debug information");
+  .option("-d, --debug", "Print additional debug information")
+  .option("--args <args...>", "Additional arguments in the form key=value");
 
-program.parse();
+program.parse(process.argv);
 const options = program.opts();
 export type ProgramOptions = typeof options;
+
+// Parse the additional arguments
+const variables: Record<string, string> = {};
+if (options.args) {
+  options.args.forEach((arg: string) => {
+    const [key, value] = arg.split("=");
+    if (key && value) {
+      variables[key.trim()] = value.trim();
+    }
+  });
+}
 
 Display.setOptions(options);
 if (options.log) {
@@ -30,6 +42,8 @@ if (options.log) {
 if (options.debug) {
   Display.debug?.group("Options");
   Display.debug?.log(options);
+  Display.debug?.log("Additional Arguments:");
+  Display.debug?.log(variables);
 }
 
 /**
@@ -70,11 +84,11 @@ const stats = {
 for (const [jobName, job] of Object.entries(jobConfig.jobs)) {
   Display.info.group(`Executing "${jobName}"`);
   if (isBatchJob(job)) {
-    const executable = await getBatchCommand(job, engine, options);
-    await executable.execute(options, stats);
+    const executable = await getBatchCommand(job, engine);
+    await executable.execute(variables, options, stats);
   } else {
     const executable = await getAgentCommand(job, engine);
-    await executable.execute(options, stats);
+    await executable.execute(variables, options, stats);
   }
 }
 
