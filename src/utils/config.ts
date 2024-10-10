@@ -1,7 +1,7 @@
 import YAML from "yaml";
 import { ProgramOptions } from "../index.js";
-import { loadFile } from "./file.js";
 import { Display } from "./display.js";
+import { loadFile } from "./file.js";
 
 /* Defaults */
 const DEFAULT_CONFIG_NAME = "ax.config";
@@ -13,8 +13,20 @@ type Provider = {
   model?: string;
 };
 
+export type ToolProvider = {
+  "api-key": string;
+};
+
+export interface BraveProvider extends ToolProvider {
+  delay?: number;
+}
+
 export type Config = {
-  providers: { [key: string]: Provider } & { [K in string]: Provider };
+  providers: { [providerName: string]: Provider };
+  tools: {
+    brave: BraveProvider;
+    [tooName: string]: ToolProvider;
+  };
 };
 
 /* Exports */
@@ -50,21 +62,93 @@ export async function getConfig(
 
 /* Helpers */
 
-function isConfig(obj: any): obj is Config {
-  return (
-    obj &&
-    typeof obj === "object" &&
-    "providers" in obj &&
-    typeof obj.providers === "object" &&
-    Object.keys(obj.providers).length > 0 &&
-    Object.entries(obj.providers).every(
-      ([key, provider]) =>
-        typeof key === "string" &&
-        provider &&
-        typeof provider === "object" &&
-        "api-key" in provider &&
-        typeof provider["api-key"] === "string" &&
-        (!("model" in provider) || typeof provider.model === "string"),
-    )
-  );
+export function isProvider(obj: any): obj is Provider {
+  if (!obj || typeof obj !== "object") {
+    Display.debug.log("Provider: Not an object");
+    return false;
+  }
+
+  if (!("api-key" in obj) || typeof obj["api-key"] !== "string") {
+    Display.debug.log("Provider: Missing or invalid 'api-key'");
+    return false;
+  }
+
+  if ("model" in obj && typeof obj.model !== "string") {
+    Display.debug.log("Provider: Invalid 'model' type");
+    return false;
+  }
+
+  return true;
+}
+
+export function isToolProvider(obj: any): obj is ToolProvider {
+  if (!obj || typeof obj !== "object") {
+    Display.debug.log("ToolProvider: Not an object");
+    return false;
+  }
+
+  if (!("api-key" in obj) || typeof obj["api-key"] !== "string") {
+    Display.debug.log("ToolProvider: Missing or invalid 'api-key'");
+    return false;
+  }
+
+  return true;
+}
+
+export function isBraveProvider(obj: any): obj is BraveProvider {
+  if (!isToolProvider(obj)) {
+    return false;
+  }
+
+  if ("delay" in obj && typeof obj.delay !== "number") {
+    Display.debug.log("BraveProvider: Invalid 'delay' type");
+    return false;
+  }
+
+  return true;
+}
+
+export function isConfig(obj: any): obj is Config {
+  if (!obj || typeof obj !== "object") {
+    Display.debug.log("Config: Not an object");
+    return false;
+  }
+
+  if (!("providers" in obj) || typeof obj.providers !== "object") {
+    Display.debug.log("Config: Missing or invalid 'providers' property");
+    return false;
+  }
+
+  if (Object.keys(obj.providers).length === 0) {
+    Display.debug.log("Config: 'providers' object is empty");
+    return false;
+  }
+
+  if (!("tools" in obj) || typeof obj.tools !== "object") {
+    Display.debug.log("Config: Missing or invalid 'tools' property");
+    return false;
+  }
+
+  for (const [key, provider] of Object.entries(obj.providers)) {
+    if (!isProvider(provider)) {
+      Display.debug.log(`Config: Invalid provider for key '${key}'`);
+      return false;
+    }
+  }
+
+  for (const [key, tool] of Object.entries(obj.tools)) {
+    if (key === "brave") {
+      if (!isBraveProvider(tool)) {
+        Display.debug.log(`Config: Invalid BraveProvider for key 'brave'`);
+        return false;
+      }
+    } else {
+      if (!isToolProvider(tool)) {
+        Display.debug.log(`Config: Invalid ToolProvider for key '${key}'`);
+        return false;
+      }
+    }
+  }
+
+  return true;
 }

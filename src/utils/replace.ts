@@ -1,8 +1,8 @@
 import { glob } from "glob";
+import { readFile } from "node:fs/promises";
+import { Display } from "./display.js";
 import { ReplaceFile, ReplaceManyFiles } from "./job.js";
 import { arrayify } from "./utils.js";
-import { Display } from "./display.js";
-import { readFile } from "node:fs/promises";
 
 export async function fileReplacer(
   content: string,
@@ -40,6 +40,18 @@ export async function manyFilesReplacer(
     content = content.replace(r.pattern, replacement);
   } catch (error) {
     console.error(error);
+  }
+  return content;
+}
+
+export function replaceVariables(
+  content: string,
+  variables: Record<string, any>,
+): string {
+  for (const [key, value] of Object.entries(variables)) {
+    content = content.replace(/\$\{(.*?)\}/g, (_, group) => {
+      return variables[group] || "";
+    });
   }
   return content;
 }

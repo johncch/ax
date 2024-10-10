@@ -1,0 +1,15 @@
+using:
+  engine: openai
+  model: gpt-4o
+
+jobs:
+  writer:
+    type: agent
+    tools:
+      - brave
+    variables:
+      name: hello
+      input: "The Beatles"
+    steps:
+      - action: write-to-disk
+        output: ./output/${name}.txt

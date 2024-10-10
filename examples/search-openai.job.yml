@@ -1,10 +1,12 @@
 using:
   engine: openai
-  model: gpt-3.5-turbo
+  model: gpt-4o
 
 jobs:
-  music-research:
+  musician-research:
     type: agent
+    tools:
+      - brave
     steps:
       - action: chat
         system: |

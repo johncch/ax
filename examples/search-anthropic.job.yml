@@ -1,10 +1,12 @@
 using:
-  engine: openai
-  model: gpt-3.5-turbo
+  engine: anthropic
+  model: claude-3-5-sonnet-20240620
 
 jobs:
   music-research:
     type: agent
+    tools:
+      - brave
     steps:
       - action: chat
         system: |

@@ -1,12 +1,23 @@
 import { ProgramOptions } from "../index.js";
-import { AIProvider, AIProviderStopReason, Chat } from "../providers/types.js";
+import {
+  AIProvider,
+  AIProviderStopReason,
+  Chat,
+  ChatItemAssistant,
+} from "../providers/types.js";
 import { Display } from "../utils/display.js";
-import { ChatAction, Replace } from "../utils/job.js";
+import {
+  ChatAction,
+  isChatAction,
+  isToolRespondAction,
+  Replace,
+  ToolRespondAction,
+} from "../utils/job.js";
 import { fileReplacer, manyFilesReplacer } from "../utils/replace.js";
 import { Stats } from "../utils/stats.js";
 
 export async function executeChatAction(params: {
-  step: ChatAction;
+  step: ChatAction | ToolRespondAction;
   chat: Chat;
   provider: AIProvider;
   stats: Stats;
@@ -14,20 +25,29 @@ export async function executeChatAction(params: {
   options: ProgramOptions;
 }) {
   const { step, chat, provider, stats, variables, options } = params;
-  let { content, system } = step;
-  if (step.replace) {
-    [content, system] = await handleReplace(
-      step.replace,
-      variables,
-      step.content,
-      step.system,
-    );
-  }
+  if (isChatAction(step)) {
+    let { content, system } = step;
+    if (step.replace) {
+      [content, system] = await handleReplace(
+        step.replace,
+        variables,
+        step.content,
+        step.system,
+      );
+    }
 
-  if (system) {
-    chat.addSystem(system);
+    if (system) {
+      chat.addSystem(system);
+    }
+    chat.addUser(content);
+  } else if (isToolRespondAction(step)) {
+    let inputs = variables.input as { id: string; results: any }[];
+    const results = inputs.map((r) => ({
+      id: r.id,
+      content: JSON.stringify(r.results),
+    }));
+    chat.addTools(results);
   }
-  chat.addUser(content);
 
   // Execute
   if (options.dryRun) {
@@ -40,7 +60,7 @@ export async function executeChatAction(params: {
 
   stats.in += response.usage.in;
   stats.out += response.usage.out;
-  if (response.type == "success") {
+  if (response.type === "success") {
     switch (response.reason) {
       case AIProviderStopReason.Stop: {
         if (response.message.content) {
@@ -53,22 +73,31 @@ export async function executeChatAction(params: {
         return {
           action: "error",
           error: new Error(
-            "AXIS: Incomplete model output due to `max_tokens` parameter or token limit",
+            "Incomplete model output due to `max_tokens` parameter or token limit",
           ),
         };
       }
       case AIProviderStopReason.FunctionCall: {
+        let message = response.message as ChatItemAssistant;
+        if (response.message.content) {
+          chat.addAssistant(message.content, message.toolCalls);
+          variables.input = response.message.content;
+        }
         return {
-          action: "error",
-          error: new Error("Function call is currently not supported"),
+          action: "toolCall",
+          toolCalls: message.toolCalls,
         };
       }
     }
   }
-  return {
-    action: "error",
-    error: new Error("Failed to get response from AI provider"),
-  };
+  Display.debug.log(response);
+
+  if (response.type === "error") {
+    return {
+      action: "error",
+      error: new Error(response.error.message),
+    };
+  }
 }
 
 async function handleReplace(

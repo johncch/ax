@@ -1,5 +1,6 @@
 import YAML from "yaml";
 import { ProgramOptions } from "../index.js";
+import { ToolCall } from "../providers/types.js";
 import { Display } from "./display.js";
 import { loadFile } from "./file.js";
 
@@ -22,6 +23,8 @@ export type Job = AgentJob | BatchJob;
 
 export interface AgentJob {
   type: "agent";
+  tools?: string[];
+  variables?: Record<string, string>;
   steps: Step[];
 }
 
@@ -32,6 +35,8 @@ export interface SkipOptions {
 
 export interface BatchJob {
   type: "batch";
+  tools?: string[];
+  variables?: Record<string, string>;
   batch: {
     type: "files";
     input: string;
@@ -40,13 +45,29 @@ export interface BatchJob {
   steps: Step[];
 }
 
-export type Step = ChatAction | WriteToDiskAction | SaveVarAction;
+export type Step =
+  | ChatAction
+  | ToolAction
+  | ToolRespondAction
+  | WriteToDiskAction
+  | SaveVarAction;
 
 export interface ChatAction {
   action: "chat";
   system?: string;
   content: string;
   replace?: Replace[];
+}
+
+export interface ToolAction {
+  action: "tool-call";
+  toolCalls: ToolCall[];
+  throttle?: number;
+}
+
+export interface ToolRespondAction {
+  action: "tool-respond";
+  toolCalls: ToolCall[];
 }
 
 export interface WriteToDiskAction {
@@ -114,6 +135,7 @@ export async function getJob(
 /* Helpers */
 
 export function isJobConfig(obj: any): obj is JobConfig {
+  Display.debug.log("Checking if object is JobConfig");
   if (typeof obj !== "object") {
     Display.debug.log("JobConfig: Not an object");
     return false;
@@ -136,6 +158,7 @@ export function isJobConfig(obj: any): obj is JobConfig {
 }
 
 export function isUsing(obj: any): obj is Using {
+  Display.debug.log("Checking if object is Using");
   if (typeof obj !== "object") {
     Display.debug.log("Using: Not an object");
     return false;
@@ -155,18 +178,23 @@ export function isUsing(obj: any): obj is Using {
 }
 
 export function isJob(obj: any): obj is Job {
+  Display.debug.log("Checking if object is Job");
   if (typeof obj !== "object") {
     Display.debug.log("Job: Not an object");
     return false;
   }
-  if (isAgentJob(obj) || isBatchJob(obj)) {
+  if (isAgentJob(obj)) {
     return true;
+  } else if (isBatchJob(obj)) {
+    return true;
+  } else {
+    Display.debug.log("Job: Neither AgentJob nor BatchJob");
+    return false;
   }
-  Display.debug.log("Job: Neither AgentJob nor BatchJob");
-  return false;
 }
 
 export function isAgentJob(obj: any): obj is AgentJob {
+  Display.debug.log("Checking if object is AgentJob");
   if (typeof obj !== "object") {
     Display.debug.log("AgentJob: Not an object");
     return false;
@@ -189,6 +217,7 @@ export function isAgentJob(obj: any): obj is AgentJob {
 }
 
 export function isSkipOptions(obj: any): obj is SkipOptions {
+  Display.debug.log("Checking if object is SkipOptions");
   if (typeof obj !== "object") {
     Display.debug.log("SkipOptions: Not an object");
     return false;
@@ -205,6 +234,7 @@ export function isSkipOptions(obj: any): obj is SkipOptions {
 }
 
 export function isBatchJob(obj: any): obj is BatchJob {
+  Display.debug.log("Checking if object is BatchJob");
   if (typeof obj !== "object") {
     Display.debug.log("BatchJob: Not an object");
     return false;
@@ -259,18 +289,29 @@ export function isBatchJob(obj: any): obj is BatchJob {
 }
 
 export function isStep(obj: any): obj is Step {
+  Display.debug.log("Checking if object is Step");
   if (typeof obj !== "object") {
     Display.debug.log("Step: Not an object");
     return false;
   }
-  if (isChatAction(obj) || isWriteToDiskAction(obj) || isSaveVarAction(obj)) {
+  if (isChatAction(obj)) {
     return true;
+  } else if (isToolAction(obj)) {
+    return true;
+  } else if (isToolRespondAction(obj)) {
+    return true;
+  } else if (isWriteToDiskAction(obj)) {
+    return true;
+  } else if (isSaveVarAction(obj)) {
+    return true;
+  } else {
+    Display.debug.log("Step: Not a valid Step type");
+    return false;
   }
-  Display.debug.log("Step: Not a valid Step type");
-  return false;
 }
 
 export function isChatAction(obj: any): obj is ChatAction {
+  Display.debug.log("Checking if object is ChatAction");
   if (typeof obj !== "object") {
     Display.debug.log("ChatAction: Not an object");
     return false;
@@ -302,7 +343,42 @@ export function isChatAction(obj: any): obj is ChatAction {
   return true;
 }
 
+export function isToolAction(obj: any): obj is ToolAction {
+  Display.debug.log("Checking if object is ToolAction");
+  if (typeof obj !== "object") {
+    Display.debug.log("ToolAction: Not an object");
+    return false;
+  }
+  if (obj.action !== "tool-call") {
+    Display.debug.log("ToolAction: Invalid 'action' property");
+    return false;
+  }
+  if (!Array.isArray(obj.toolCalls)) {
+    Display.debug.log("ToolAction: 'toolCalls' is not an array");
+    return false;
+  }
+  return true;
+}
+
+export function isToolRespondAction(obj: any): obj is ToolRespondAction {
+  Display.debug.log("Checking if object is ToolRespondAction");
+  if (typeof obj !== "object") {
+    Display.debug.log("ToolRespondAction: Not an object");
+    return false;
+  }
+  if (obj.action !== "tool-respond") {
+    Display.debug.log("ToolRespondAction: Invalid 'action' property");
+    return false;
+  }
+  if (!Array.isArray(obj.toolCalls)) {
+    Display.debug.log("ToolRespondAction: 'toolCalls' is not an array");
+    return false;
+  }
+  return true;
+}
+
 export function isWriteToDiskAction(obj: any): obj is WriteToDiskAction {
+  Display.debug.log("Checking if object is WriteToDiskAction");
   if (typeof obj !== "object") {
     Display.debug.log("WriteToDiskAction: Not an object");
     return false;
@@ -319,6 +395,7 @@ export function isWriteToDiskAction(obj: any): obj is WriteToDiskAction {
 }
 
 export function isSaveVarAction(obj: any): obj is SaveVarAction {
+  Display.debug.log("Checking if object is SaveVarAction");
   if (typeof obj !== "object") {
     Display.debug.log("SaveVarAction: Not an object");
     return false;
@@ -335,22 +412,25 @@ export function isSaveVarAction(obj: any): obj is SaveVarAction {
 }
 
 export function isReplace(obj: any): obj is Replace {
+  Display.debug.log("Checking if object is Replace");
   if (typeof obj !== "object") {
     Display.debug.log("Replace: Not an object");
     return false;
   }
-  if (
-    isReplaceManyFiles(obj) ||
-    isReplaceFile(obj) ||
-    isReplaceVariables(obj)
-  ) {
+  if (isReplaceManyFiles(obj)) {
     return true;
+  } else if (isReplaceFile(obj)) {
+    return true;
+  } else if (isReplaceVariables(obj)) {
+    return true;
+  } else {
+    Display.debug.log("Replace: Not a valid Replace type");
+    return false;
   }
-  Display.debug.log("Replace: Not a valid Replace type");
-  return false;
 }
 
 export function isReplaceVariables(obj: any): obj is ReplaceVariables {
+  Display.debug.log("Checking if object is ReplaceVariables");
   if (typeof obj !== "object") {
     Display.debug.log("ReplaceVariables: Not an object");
     return false;
@@ -371,6 +451,7 @@ export function isReplaceVariables(obj: any): obj is ReplaceVariables {
 }
 
 export function isReplaceFile(obj: any): obj is ReplaceFile {
+  Display.debug.log("Checking if object is ReplaceFile");
   if (typeof obj !== "object") {
     Display.debug.log("ReplaceFile: Not an object");
     return false;
@@ -391,6 +472,7 @@ export function isReplaceFile(obj: any): obj is ReplaceFile {
 }
 
 export function isReplaceManyFiles(obj: any): obj is ReplaceManyFiles {
+  Display.debug.log("Checking if object is ReplaceManyFiles");
   if (typeof obj !== "object") {
     Display.debug.log("ReplaceManyFiles: Not an object");
     return false;

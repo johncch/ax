@@ -6,6 +6,7 @@ import {
   writeFileWithDirectories,
 } from "../utils/file.js";
 import { SaveVarAction, WriteToDiskAction } from "../utils/job.js";
+import { replaceVariables } from "../utils/replace.js";
 
 export async function execWriteToDisk(params: {
   action: WriteToDiskAction;
@@ -20,7 +21,12 @@ export async function execWriteToDisk(params: {
   const output = action.output;
   const content = variables.input;
   if (typeof content === "string") {
-    const filepath = replaceFilePattern(output, variables.file as FilePathInfo);
+    let filepath = "";
+    if (output.includes("*")) {
+      filepath = replaceFilePattern(output, variables.file as FilePathInfo);
+    } else {
+      filepath = replaceVariables(output, variables);
+    }
     await writeFileWithDirectories(filepath, content);
   }
 }

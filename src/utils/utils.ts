@@ -11,3 +11,7 @@ export function stringify(obj: any): string {
 export function friendly(id: UUID): string {
   return id.slice(0, 8);
 }
+
+export function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}

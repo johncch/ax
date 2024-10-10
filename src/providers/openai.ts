@@ -43,7 +43,7 @@ class OpenAIRequest implements AIRequest {
   async execute(): Promise<AIResponse> {
     const request = {
       model: this.model,
-      messages: this.chat.toOpenAI(),
+      ...this.chat.toOpenAI(),
     };
     Display.debug.log(request);
 
@@ -52,6 +52,7 @@ class OpenAIRequest implements AIRequest {
       const completion = await this.openai.chat.completions.create(request);
       result = translate(completion);
     } catch (e) {
+      console.error(e);
       result = {
         type: "error",
         error: {
@@ -76,7 +77,7 @@ function getStopReason(reason: string) {
       return AIProviderStopReason.Length;
     case "stop":
       return AIProviderStopReason.Stop;
-    case "function_call":
+    case "tool_calls":
       return AIProviderStopReason.FunctionCall;
     default:
       return AIProviderStopReason.Error;
@@ -88,6 +89,12 @@ function translate(
 ): AIResponse {
   if (completion.choices.length > 0) {
     const choice = completion.choices[0];
+    const toolCalls = choice.message.tool_calls?.map((call) => ({
+      id: call.id,
+      name: call.function.name,
+      arguments: JSON.parse(call.function.arguments),
+    }));
+
     return {
       type: "success",
       id: completion.id,
@@ -96,6 +103,7 @@ function translate(
       message: {
         content: choice.message.content ?? "",
         role: choice.message.role,
+        toolCalls: toolCalls,
       },
       usage: {
         in: completion.usage?.prompt_tokens ?? 0,

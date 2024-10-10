@@ -7,6 +7,7 @@ import {
   AIRequest,
   AIResponse,
   Chat,
+  ToolCall,
 } from "./types.js";
 
 export class AnthropicProvider implements AIProvider {
@@ -53,8 +54,8 @@ class AnthropicChatRequest implements AIRequest {
       result = {
         type: "error",
         error: {
-          type: e.type ?? "Undetermined",
-          message: e.message ?? "Unexpected error from Anthropic",
+          type: e.error.error.type ?? "Undetermined",
+          message: e.error.error.message ?? "Unexpected error from Anthropic",
         },
         usage: {
           in: 0,
@@ -103,9 +104,60 @@ function getStopReason(reason: string) {
 }
 
 function translate(completion: Anthropic.Messages.Message): AIResponse {
+  const stopReason = getStopReason(completion.stop_reason);
+  if (stopReason === AIProviderStopReason.Error) {
+    return {
+      type: "error",
+      error: {
+        type: "Uncaught error",
+        message: "Stop reason is not recognized.",
+      },
+      usage: {
+        in: completion.usage.input_tokens,
+        out: completion.usage.output_tokens,
+      },
+      raw: completion,
+    };
+  }
+
+  if (stopReason === AIProviderStopReason.FunctionCall) {
+    const content = completion.content[0];
+    const contentText = content.type === "text" ? content.text : "";
+
+    const toolCalls = completion.content
+      .slice(1)
+      .map((toolUse) => {
+        if (toolUse.type === "tool_use") {
+          return {
+            id: toolUse.id,
+            name: toolUse.name,
+            arguments: toolUse.input,
+          };
+        }
+      })
+      .filter((v): v is ToolCall => v !== null);
+
+    return {
+      type: "success",
+      id: completion.id,
+      model: completion.model,
+      reason: AIProviderStopReason.FunctionCall,
+      message: {
+        role: completion.role,
+        content: contentText,
+        toolCalls: toolCalls,
+      },
+      usage: {
+        in: completion.usage.input_tokens,
+        out: completion.usage.output_tokens,
+      },
+      raw: completion,
+    };
+  }
+
   if (completion.type == "message") {
     const content = completion.content[0];
-    if (content.type == "text" && completion.stop_reason) {
+    if (content.type == "text") {
       return {
         type: "success",
         id: completion.id,
@@ -123,17 +175,4 @@ function translate(completion: Anthropic.Messages.Message): AIResponse {
       };
     }
   }
-
-  return {
-    type: "error",
-    error: {
-      type: "undetermined",
-      message: "Unexpected response from Anthropic",
-    },
-    usage: {
-      in: completion.usage.input_tokens,
-      out: completion.usage.output_tokens,
-    },
-    raw: completion,
-  };
 }

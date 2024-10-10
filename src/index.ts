@@ -2,6 +2,7 @@ import { Command } from "@commander-js/extra-typings";
 import { executeAgentCommand } from "./commands/agent.js";
 import { executeBatchCommand } from "./commands/batch.js";
 import { getEngine } from "./providers/index.js";
+import { getTools } from "./tools/index.js";
 import { getConfig, type Config } from "./utils/config.js";
 import { Display } from "./utils/display.js";
 import { getJob, isBatchJob, JobConfig } from "./utils/job.js";
@@ -62,6 +63,12 @@ try {
 }
 
 /**
+ * Setup tools
+ */
+
+const toolManager = getTools(config, options);
+
+/**
  * Execute the job
  */
 const engine = getEngine(jobConfig.using, config, options);
@@ -84,9 +91,23 @@ const stats = {
 for (const [jobName, job] of Object.entries(jobConfig.jobs)) {
   Display.info.group(`Executing "${jobName}"`);
   if (isBatchJob(job)) {
-    await executeBatchCommand(job, engine, variables, options, stats);
+    await executeBatchCommand(
+      job,
+      engine,
+      toolManager,
+      variables,
+      options,
+      stats,
+    );
   } else {
-    await executeAgentCommand(job, engine, variables, options, stats);
+    await executeAgentCommand(
+      job,
+      engine,
+      toolManager,
+      variables,
+      options,
+      stats,
+    );
   }
 }
 

@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { ProgramOptions } from "../index.js";
 import { AIProvider } from "../providers/types.js";
+import { ToolManager } from "../tools/index.js";
 import { Display } from "../utils/display.js";
 import { fileExists, FilePathInfo, pathToComponents } from "../utils/file.js";
 import { BatchJob, SkipOptions } from "../utils/job.js";
@@ -18,6 +19,7 @@ interface Run {
 export async function executeBatchCommand(
   job: BatchJob,
   engine: AIProvider,
+  toolManager: ToolManager,
   variables: Record<string, any>,
   options: ProgramOptions,
   stats: Stats,
@@ -70,6 +72,7 @@ export async function executeBatchCommand(
       await executeAgentCommand(
         run.job,
         engine,
+        toolManager,
         { ...run.variables, ...variables },
         options,
         stats,
