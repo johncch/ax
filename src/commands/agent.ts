@@ -76,12 +76,17 @@ export async function executeAgentCommand(
         }
       }
     } else if (isToolAction(step)) {
-      await executeToolAction({
-        step,
-        toolManager,
-        variables,
-        options,
-      });
+      try {
+        await executeToolAction({
+          step,
+          toolManager,
+          variables,
+          options,
+        });
+      } catch (error) {
+        hasError = true;
+        console.error(error);
+      }
     } else if (isSaveVarAction(step)) {
       execSaveToVariables({
         action: step,

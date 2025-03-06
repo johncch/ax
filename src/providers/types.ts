@@ -91,7 +91,7 @@ export interface ChatItemToolCall {
 export class Chat {
   system: string;
   messages: ChatItem[] = [];
-  tools: ToolSchema[];
+  tools: ToolSchema[] = [];
 
   setToolSchemas(schemas: ToolSchema[]) {
     this.tools = schemas;
@@ -121,17 +121,23 @@ export class Chat {
   }
 
   toOpenAI() {
-    const systemMsg = {
-      role: "system" as const,
-      content: this.system,
-    };
+    const systemMsg = [];
+    if (this.system) {
+      systemMsg.push({
+        role: "system" as const,
+        content: this.system,
+      });
+    }
 
-    const tools = this.tools.map((schema) => {
-      return {
-        type: "function",
-        function: schema,
-      } satisfies ChatCompletionTool;
-    });
+    const tools =
+      this.tools.length > 0
+        ? this.tools.map((schema) => {
+            return {
+              type: "function",
+              function: schema,
+            } satisfies ChatCompletionTool;
+          })
+        : undefined;
 
     const messages = this.messages
       .map((msg) => {
@@ -167,11 +173,11 @@ export class Chat {
       .flat(Infinity) as Array<ChatCompletionMessageParam>;
 
     return {
-      messages: [systemMsg, ...messages],
-      tools,
+      messages: [...systemMsg, ...messages],
+      ...(tools && { tools }),
     } satisfies {
       messages: Array<ChatCompletionMessageParam>;
-      tools: Array<ChatCompletionTool>;
+      tools?: Array<ChatCompletionTool>;
     };
   }
 

@@ -14,9 +14,17 @@ export interface JobConfig {
   jobs: Record<string, Job>;
 }
 
-export interface Using {
+export type Using = UsingCommercial | UsingLocal;
+
+export interface UsingCommercial {
   engine: "openai" | "anthropic";
   model?: string;
+}
+
+export interface UsingLocal {
+  engine: "ollama";
+  model: string;
+  url?: string;
 }
 
 export type Job = AgentJob | BatchJob;
@@ -163,18 +171,38 @@ export function isUsing(obj: any): obj is Using {
     Display.debug.log("Using: Not an object");
     return false;
   }
-  if (
-    typeof obj.engine !== "string" ||
-    (obj.engine !== "openai" && obj.engine !== "anthropic")
-  ) {
+
+  if (typeof obj.engine !== "string") {
     Display.debug.log("Using: Invalid 'engine' property");
     return false;
   }
-  if (obj.model !== undefined && typeof obj.model !== "string") {
-    Display.debug.log("Using: Invalid 'model' property");
-    return false;
+
+  // Check for commercial engines (openai, anthropic)
+  if (obj.engine === "openai" || obj.engine === "anthropic") {
+    if (obj.model !== undefined && typeof obj.model !== "string") {
+      Display.debug.log("Using: Invalid 'model' property");
+      return false;
+    }
+    return true;
   }
-  return true;
+
+  // Check for local engine (ollama)
+  if (obj.engine === "ollama") {
+    if (typeof obj.model !== "string") {
+      Display.debug.log(
+        "Using: For ollama engine, 'model' is required and must be a string",
+      );
+      return false;
+    }
+    if (obj.url !== undefined && typeof obj.url !== "string") {
+      Display.debug.log("Using: Invalid 'url' property");
+      return false;
+    }
+    return true;
+  }
+
+  Display.debug.log("Using: Unsupported engine type");
+  return false;
 }
 
 export function isJob(obj: any): obj is Job {
