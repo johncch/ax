@@ -1,35 +1,43 @@
 import OpenAI from "openai";
-import { ProgramOptions } from "../index.js";
-import { Config } from "../utils/config.js";
+import { assertIsOpenAIProviderConfig } from "../configs/service.js";
+import { OpenAIProviderConfig, OpenAIUse } from "../configs/types.js";
 import { Display } from "../utils/display.js";
+import { Chat } from "./chat.js";
 import {
   AIProvider,
   AIProviderStopReason,
   AIRequest,
   AIResponse,
-  Chat,
 } from "./types.js";
+
+const DEFAULT_MODEL = "gpt-4o";
 
 export class OpenAIProvider implements AIProvider {
   name = "OpenAI";
   client: OpenAI;
   model: string | undefined;
 
-  constructor(
-    model: string | undefined,
-    config: Config,
-    options: ProgramOptions,
-  ) {
-    this.model = model;
-    this.client = new OpenAI({ apiKey: config.providers.openai["api-key"] });
+  constructor(config: Partial<OpenAIProviderConfig>, use: OpenAIUse) {
+    const c = {
+      ["api-key"]: config["api-key"] || use["api-key"],
+      model: config.model || use.model || DEFAULT_MODEL,
+    };
+
+    try {
+      assertIsOpenAIProviderConfig(c);
+      this.model = c.model;
+      this.client = new OpenAI({ apiKey: c["api-key"] });
+    } catch (e) {
+      throw new Error(`Invalid OpenAI configuration: ${e}`);
+    }
   }
 
   createChatCompletionRequest(chat: Chat) {
-    return new OpenAIRequest(this.client, this.model, chat);
+    return new OpenAIChatCompletionRequest(this.client, this.model, chat);
   }
 }
 
-class OpenAIRequest implements AIRequest {
+class OpenAIChatCompletionRequest implements AIRequest {
   chat: Chat;
   openai: OpenAI;
   model: string;

@@ -1,25 +1,38 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { Config } from "../utils/config.js";
+import { assertIsAnthropicProviderConfig } from "../configs/service.js";
+import { AnthropicProviderConfig, AnthropicUse } from "../configs/types.js";
 import { Display } from "../utils/display.js";
+import { Chat } from "./chat.js";
 import {
   AIProvider,
   AIProviderStopReason,
   AIRequest,
   AIResponse,
-  Chat,
   ToolCall,
 } from "./types.js";
+
+const DEFAULT_MODEL = "claude-3-5-haiku-latest";
 
 export class AnthropicProvider implements AIProvider {
   name = "Anthropic";
   client: Anthropic;
   model: string;
 
-  constructor(model: string | undefined, config: Config) {
-    this.model = model ?? "claude-3-5-sonnet-20240620";
-    this.client = new Anthropic({
-      apiKey: config.providers.anthropic["api-key"],
-    });
+  constructor(config: Partial<AnthropicProviderConfig>, use: AnthropicUse) {
+    const c = {
+      ["api-key"]: config["api-key"] || use["api-key"],
+      model: config.model || use.model || DEFAULT_MODEL,
+    };
+
+    try {
+      assertIsAnthropicProviderConfig(c);
+      this.model = c.model;
+      this.client = new Anthropic({
+        apiKey: c["api-key"],
+      });
+    } catch (e) {
+      throw new Error(`Invalid Anthropic configuration: ${e}`);
+    }
   }
 
   createChatCompletionRequest(chat: Chat): AIRequest {

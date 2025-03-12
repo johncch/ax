@@ -1,7 +1,7 @@
 import { glob } from "glob";
 import { readFile } from "node:fs/promises";
+import { ReplaceFile, ReplaceManyFiles } from "../configs/types.js";
 import { Display } from "./display.js";
-import { ReplaceFile, ReplaceManyFiles } from "./job.js";
 import { arrayify } from "./utils.js";
 
 export async function fileReplacer(

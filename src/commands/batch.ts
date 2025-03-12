@@ -1,20 +1,16 @@
 import { glob } from "glob";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { ProgramOptions } from "../index.js";
+import { BatchJob, SkipOptions } from "../configs/types.js";
 import { AIProvider } from "../providers/types.js";
-import { ToolManager } from "../tools/index.js";
+import { ToolManager } from "../tools/types.js";
+import { ProgramOptions, Stats } from "../types.js";
 import { Display } from "../utils/display.js";
-import { fileExists, FilePathInfo, pathToComponents } from "../utils/file.js";
-import { BatchJob, SkipOptions } from "../utils/job.js";
-import { Stats } from "../utils/stats.js";
+import { fileExists, pathToComponents } from "../utils/file.js";
+import { FilePathInfo } from "../utils/types.js";
 import { arrayify } from "../utils/utils.js";
 import { executeAgentCommand } from "./agent.js";
-
-interface Run {
-  job: BatchJob;
-  variables: Record<string, any>;
-}
+import { Run } from "./types.js";
 
 export async function executeBatchCommand(
   job: BatchJob,

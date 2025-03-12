@@ -1,24 +1,26 @@
-import { ProgramOptions } from "../index.js";
-import { Config } from "../utils/config.js";
-import { Using } from "../utils/job.js";
+import { ProviderConfig, Using } from "../configs/types.js";
+import { ProgramOptions } from "../types.js";
 import { AnthropicProvider } from "./anthropic.js";
 import { OllamaProvider } from "./ollama.js";
 import { OpenAIProvider } from "./openai.js";
 import { AIProvider } from "./types.js";
 
-export function getEngine(
+export function getProvider(
   engine: Using,
-  config: Config,
+  config: ProviderConfig,
   options: ProgramOptions,
-): AIProvider | null {
+): AIProvider {
   if (engine.engine == "openai") {
-    return new OpenAIProvider(engine.model, config, options);
+    return new OpenAIProvider(config.openai, engine);
   }
   if (engine.engine == "anthropic") {
-    return new AnthropicProvider(engine.model, config);
+    return new AnthropicProvider(config.anthropic, engine);
   }
   if (engine.engine == "ollama") {
-    return new OllamaProvider(engine.model, engine.url, config);
+    return new OllamaProvider(config.ollama, engine);
   }
-  return null;
+
+  throw new Error(
+    "AI Provider is invalid or not supported. Please check your job file.",
+  );
 }

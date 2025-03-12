@@ -1,6 +1,7 @@
 using:
-  engine: anthropic
-  model: claude-3-5-sonnet-20240620
+  engine: openai
+  # engine: ollama
+  # model: llama3.3
 
 jobs:
   update-readme:

@@ -1,19 +1,7 @@
 import { glob } from "glob";
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-
-interface LoadFileResults {
-  content: string;
-  format: string;
-}
-
-export interface FilePathInfo {
-  absolutePath: string;
-  directoryPath: string;
-  fileExtension: string;
-  fileNameStem: string;
-  fullFileName: string;
-}
+import { FilePathInfo, LoadFileResults } from "./types.js";
 
 export async function loadFile(
   path: string | null,

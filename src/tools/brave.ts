@@ -1,7 +1,7 @@
-import { BraveProvider } from "../utils/config.js";
+import { BraveProviderConfig } from "../configs/types.js";
 import { Display } from "../utils/display.js";
 import { delay } from "../utils/utils.js";
-import { ToolSchema } from "./index.js";
+import { ToolSchema } from "./types.js";
 
 export const schema: ToolSchema = {
   name: "brave",
@@ -18,7 +18,7 @@ export const schema: ToolSchema = {
   },
 };
 
-export function getBraveSearch(config: BraveProvider) {
+export function getBraveSearch(config: BraveProviderConfig) {
   if (config["api-key"]) {
     const key = config["api-key"];
     const delay = config.delay;

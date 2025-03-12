@@ -1,20 +1,14 @@
-import { ProgramOptions } from "../index.js";
+import { isChatAction, isToolRespondAction } from "../configs/job.js";
+import { ChatAction, Replace, ToolRespondAction } from "../configs/types.js";
+import { Chat } from "../providers/chat.js";
 import {
   AIProvider,
   AIProviderStopReason,
-  Chat,
   ChatItemAssistant,
 } from "../providers/types.js";
+import { ProgramOptions, Stats } from "../types.js";
 import { Display } from "../utils/display.js";
-import {
-  ChatAction,
-  isChatAction,
-  isToolRespondAction,
-  Replace,
-  ToolRespondAction,
-} from "../utils/job.js";
 import { fileReplacer, manyFilesReplacer } from "../utils/replace.js";
-import { Stats } from "../utils/stats.js";
 
 export async function executeChatAction(params: {
   step: ChatAction | ToolRespondAction;

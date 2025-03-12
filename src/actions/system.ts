@@ -1,12 +1,9 @@
-import { ProgramOptions } from "../index.js";
+import { SaveVarAction, WriteToDiskAction } from "../configs/types.js";
+import { ProgramOptions } from "../types.js";
 import { Display } from "../utils/display.js";
-import {
-  type FilePathInfo,
-  replaceFilePattern,
-  writeFileWithDirectories,
-} from "../utils/file.js";
-import { SaveVarAction, WriteToDiskAction } from "../utils/job.js";
+import { replaceFilePattern, writeFileWithDirectories } from "../utils/file.js";
 import { replaceVariables } from "../utils/replace.js";
+import { FilePathInfo } from "../utils/types.js";
 
 export async function execWriteToDisk(params: {
   action: WriteToDiskAction;

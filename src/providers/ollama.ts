@@ -1,33 +1,42 @@
-import { Config } from "../utils/config.js";
+import { assertIsOllamaProviderConfig } from "../configs/service.js";
+import { OllamaProviderConfig, OllamaUse } from "../configs/types.js";
 import { Display } from "../utils/display.js";
+import { Chat } from "./chat.js";
 import {
   AIProvider,
   AIProviderStopReason,
   AIRequest,
   AIResponse,
-  Chat,
 } from "./types.js";
 
+const DEFAULT_URL = "http://localhost:11434";
+
 export class OllamaProvider implements AIProvider {
-  name = "Ollama";
+  readonly name = "Ollama";
   url: string;
   model: string;
 
-  constructor(
-    model: string | undefined,
-    url: string | undefined,
-    config: Config,
-  ) {
-    this.model = model ?? "llama3";
-    this.url = url ?? "http://localhost:11434";
+  constructor(config: Partial<OllamaProviderConfig>, use: OllamaUse) {
+    const c = {
+      model: config.model ?? use.model,
+      url: config.url ?? use.url ?? DEFAULT_URL,
+    };
+
+    try {
+      assertIsOllamaProviderConfig(c);
+      this.url = c.url;
+      this.model = c.model;
+    } catch (e) {
+      throw new Error(`Invalid Ollama configuration: ${e}`);
+    }
   }
 
   createChatCompletionRequest(chat: Chat): AIRequest {
-    return new OllamaChatRequest(this.url, this.model, chat);
+    return new OllamaChatCompletionRequest(this.url, this.model, chat);
   }
 }
 
-class OllamaChatRequest implements AIRequest {
+class OllamaChatCompletionRequest implements AIRequest {
   chat: Chat;
   url: string;
   model: string;

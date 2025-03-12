@@ -1,30 +1,16 @@
-import { ProgramOptions } from "../index.js";
-import { Config } from "../utils/config.js";
+import { ProviderConfig } from "../configs/types.js";
+import { ProgramOptions } from "../types.js";
 import { getBraveSearch } from "./brave.js";
+import { ToolFn, ToolManager, ToolSchema } from "./types.js";
 
-export interface ToolSchema {
-  name: string;
-  description: string;
-  parameters: {
-    type: "object";
-    properties: Record<string, object>;
-    required: string[];
-  };
-}
-
-type ToolFn = (...args: any[]) => Promise<any>;
-
-export interface ToolManager {
-  tools: Record<string, ToolFn>;
-  schemas: Record<string, object>;
-  getSchemas: (names: string[]) => ToolSchema[];
-}
-
-export function getTools(config: Config, options: ProgramOptions): ToolManager {
+export function getTools(
+  config: ProviderConfig,
+  options: ProgramOptions,
+): ToolManager {
   const tools: Record<string, ToolFn> = {};
   const schemas: Record<string, ToolSchema> = {};
   // Brave Search
-  const braveSearch = getBraveSearch(config.tools.brave);
+  const braveSearch = getBraveSearch(config.brave);
   if (braveSearch) {
     tools.brave = braveSearch.fn;
     schemas.brave = braveSearch.schema;

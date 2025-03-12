@@ -1,11 +1,15 @@
 import { Command } from "@commander-js/extra-typings";
+import chalk from "chalk";
 import { executeAgentCommand } from "./commands/agent.js";
 import { executeBatchCommand } from "./commands/batch.js";
-import { getEngine } from "./providers/index.js";
+import { getJobConfig, isBatchJob } from "./configs/job.js";
+import { getProviderConfig } from "./configs/service.js";
+import { JobConfig, ProviderConfig } from "./configs/types.js";
+import { getProvider } from "./providers/index.js";
+import { AIProvider } from "./providers/types.js";
 import { getTools } from "./tools/index.js";
-import { getConfig, type Config } from "./utils/config.js";
+import { Stats } from "./types.js";
 import { Display } from "./utils/display.js";
-import { getJob, isBatchJob, JobConfig } from "./utils/job.js";
 
 const program = new Command()
   .name("axle")
@@ -23,7 +27,6 @@ const program = new Command()
 
 program.parse(process.argv);
 const options = program.opts();
-export type ProgramOptions = typeof options;
 
 // Parse the additional arguments
 const variables: Record<string, string> = {};
@@ -50,14 +53,15 @@ if (options.debug) {
 /**
  * Read and load config, job
  */
-let config: Config;
+let serviceConfig: ProviderConfig;
 let jobConfig: JobConfig;
 try {
-  config = await getConfig(options.config ?? null, options);
-  jobConfig = await getJob(options.job ?? null, options);
+  serviceConfig = await getProviderConfig(options.config ?? null, options);
+  jobConfig = await getJobConfig(options.job ?? null, options);
 } catch (e) {
+  console.error(`${chalk.red(e.message)}`);
   Display.debug?.log(e.stack);
-  console.error(`${e.stack}`);
+  console.log("");
   program.outputHelp();
   process.exit(1);
 }
@@ -65,15 +69,18 @@ try {
 /**
  * Setup tools
  */
-
-const toolManager = getTools(config, options);
+const toolManager = getTools(serviceConfig, options);
 
 /**
  * Execute the job
  */
-const engine = getEngine(jobConfig.using, config, options);
-if (!engine) {
-  console.error(`AI Provider is not valid. Please check your job file.`);
+let provider: AIProvider;
+try {
+  provider = getProvider(jobConfig.using, serviceConfig, options);
+} catch (e) {
+  console.error(`${chalk.red(e.message)}`);
+  Display.debug?.log(e.stack);
+  console.log("");
   program.outputHelp();
   process.exit(1);
 }
@@ -84,16 +91,13 @@ if (options.dryRun) {
   Display.info.log("Dry run mode enabled. No API calls will be made.");
 }
 
-const stats = {
-  in: 0,
-  out: 0,
-};
+const stats: Stats = { in: 0, out: 0 };
 for (const [jobName, job] of Object.entries(jobConfig.jobs)) {
   Display.info.group(`Executing "${jobName}"`);
   if (isBatchJob(job)) {
     await executeBatchCommand(
       job,
-      engine,
+      provider,
       toolManager,
       variables,
       options,
@@ -102,7 +106,7 @@ for (const [jobName, job] of Object.entries(jobConfig.jobs)) {
   } else {
     await executeAgentCommand(
       job,
-      engine,
+      provider,
       toolManager,
       variables,
       options,

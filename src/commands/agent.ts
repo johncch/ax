@@ -2,21 +2,20 @@ import { randomUUID } from "node:crypto";
 import { executeChatAction } from "../actions/chat.js";
 import { execSaveToVariables, execWriteToDisk } from "../actions/system.js";
 import { executeToolAction } from "../actions/tools.js";
-import { ProgramOptions } from "../index.js";
-import { AIProvider, Chat } from "../providers/types.js";
-import { ToolManager } from "../tools/index.js";
-import { Display } from "../utils/display.js";
-import { DynamicArrayIterator } from "../utils/iterator.js";
 import {
   isChatAction,
   isSaveVarAction,
   isToolAction,
   isToolRespondAction,
   isWriteToDiskAction,
-  Job,
-  Step,
-} from "../utils/job.js";
-import { Stats } from "../utils/stats.js";
+} from "../configs/job.js";
+import { Job, Step } from "../configs/types.js";
+import { Chat } from "../providers/chat.js";
+import { AIProvider } from "../providers/types.js";
+import { ToolManager } from "../tools/types.js";
+import { ProgramOptions, Stats } from "../types.js";
+import { Display } from "../utils/display.js";
+import { DynamicArrayIterator } from "../utils/iterator.js";
 import { friendly } from "../utils/utils.js";
 
 export async function executeAgentCommand(
