@@ -2,6 +2,7 @@ import { ToolAction } from "../configs/types.js";
 import { ToolManager } from "../tools/types.js";
 import { ProgramOptions } from "../types.js";
 import { Display } from "../utils/display.js";
+import { Keys } from "../utils/variables.constants.js";
 
 export async function executeToolAction(params: {
   step: ToolAction;
@@ -29,6 +30,6 @@ export async function executeToolAction(params: {
   }
 
   const results = await Promise.all(promises);
-  variables.input = results;
+  variables[Keys.Latest] = results;
   Display.debug.log(results);
 }

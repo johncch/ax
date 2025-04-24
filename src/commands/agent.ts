@@ -17,15 +17,17 @@ import { ProgramOptions, Stats } from "../types.js";
 import { Display } from "../utils/display.js";
 import { DynamicArrayIterator } from "../utils/iterator.js";
 import { friendly } from "../utils/utils.js";
+import { Keys } from "../utils/variables.constants.js";
+import { SerializedExecutionResponse } from "./types.js";
 
 export async function executeAgentCommand(
   job: Job,
   provider: AIProvider,
   toolManager: ToolManager,
   variables: Record<string, any>,
-  options: ProgramOptions,
-  stats: Stats,
-) {
+  options?: ProgramOptions,
+  stats?: Stats,
+): Promise<SerializedExecutionResponse> {
   const id = randomUUID();
   const { steps } = job;
 
@@ -109,4 +111,9 @@ export async function executeAgentCommand(
       `[${friendly(id)}] completed ${iterator.length} steps`,
     );
   }
+
+  return {
+    response: variables[Keys.Latest],
+    stats,
+  };
 }

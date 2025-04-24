@@ -9,6 +9,7 @@ import {
 import { ProgramOptions, Stats } from "../types.js";
 import { Display } from "../utils/display.js";
 import { fileReplacer, manyFilesReplacer } from "../utils/replace.js";
+import { Keys } from "../utils/variables.constants.js";
 
 export async function executeChatAction(params: {
   step: ChatAction | ToolRespondAction;
@@ -16,9 +17,10 @@ export async function executeChatAction(params: {
   provider: AIProvider;
   stats: Stats;
   variables: Record<string, any>;
-  options: ProgramOptions;
+  options?: ProgramOptions;
 }) {
   const { step, chat, provider, stats, variables, options } = params;
+
   if (isChatAction(step)) {
     let { content, system } = step;
     if (step.replace) {
@@ -35,7 +37,10 @@ export async function executeChatAction(params: {
     }
     chat.addUser(content);
   } else if (isToolRespondAction(step)) {
-    let inputs = variables.input as { id: string; results: any }[];
+    let inputs = variables[Keys.Latest] as {
+      id: string;
+      results: any;
+    }[];
     const results = inputs.map((r) => ({
       id: r.id,
       content: JSON.stringify(r.results),
@@ -44,7 +49,7 @@ export async function executeChatAction(params: {
   }
 
   // Execute
-  if (options.dryRun) {
+  if (options?.dryRun) {
     Display.debug.log(chat);
     return { action: "continue" };
   }
@@ -59,7 +64,7 @@ export async function executeChatAction(params: {
       case AIProviderStopReason.Stop: {
         if (response.message.content) {
           chat.addAssistant(response.message.content);
-          variables.input = response.message.content;
+          variables[Keys.Latest] = response.message.content;
         }
         return { action: "continue" };
       }
@@ -75,7 +80,7 @@ export async function executeChatAction(params: {
         let message = response.message as ChatItemAssistant;
         if (response.message.content) {
           chat.addAssistant(message.content, message.toolCalls);
-          variables.input = response.message.content;
+          variables[Keys.Latest] = response.message.content;
         }
         return {
           action: "toolCall",

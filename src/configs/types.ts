@@ -26,12 +26,17 @@ export interface BraveProviderConfig {
   delay?: number;
 }
 
-export type ProviderConfig = {
+export type AIProviderConfig = {
   openai?: Partial<OpenAIProviderConfig> & { "api-key": string };
   anthropic?: Partial<AnthropicProviderConfig> & { "api-key": string };
   ollama?: Partial<OllamaProviderConfig>;
+};
+
+export type ToolProviderConfig = {
   brave?: BraveProviderConfig;
 };
+
+export type ProviderConfig = AIProviderConfig & ToolProviderConfig;
 
 /* Job Types */
 

@@ -4,6 +4,7 @@ import { Display } from "../utils/display.js";
 import { replaceFilePattern, writeFileWithDirectories } from "../utils/file.js";
 import { replaceVariables } from "../utils/replace.js";
 import { FilePathInfo } from "../utils/types.js";
+import { Keys } from "../utils/variables.constants.js";
 
 export async function execWriteToDisk(params: {
   action: WriteToDiskAction;
@@ -16,7 +17,7 @@ export async function execWriteToDisk(params: {
     return;
   }
   const output = action.output;
-  const content = variables.input;
+  const content = variables[Keys.Latest];
   if (typeof content === "string") {
     let filepath = "";
     if (output.includes("*")) {
@@ -38,7 +39,7 @@ export function execSaveToVariables(params: {
     Display.debug.log("Dry run: no action was taken");
     return;
   }
-  const content = variables.input;
+  const content = variables[Keys.Latest];
   if (typeof content === "string") {
     variables[action.name] = content;
   }

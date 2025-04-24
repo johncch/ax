@@ -4,13 +4,23 @@
   "description": "axle is a command line tool for running workflows against LLM APIs.",
   "type": "module",
   "main": "./dist/index.js",
-  "bin": {
-    "ax": "./dist/index.js",
-    "axle": "./dist/index.js"
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   },
+  "bin": {
+    "ax": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "start": "tsx ./src/index.ts",
+    "start": "tsx ./src/cli.ts",
     "build": "pkgroll --clean-dist --minify",
+    "build-dev": "pkgroll --clean-dist",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "prepare": "husky install"
   },

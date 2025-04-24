@@ -8,7 +8,7 @@ import { AIProvider } from "./types.js";
 export function getProvider(
   engine: Using,
   config: ProviderConfig,
-  options: ProgramOptions,
+  options?: ProgramOptions,
 ): AIProvider {
   if (engine.engine == "openai") {
     return new OpenAIProvider(config.openai, engine);

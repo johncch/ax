@@ -18,8 +18,8 @@ export const schema: ToolSchema = {
   },
 };
 
-export function getBraveSearch(config: BraveProviderConfig) {
-  if (config["api-key"]) {
+export function getBraveSearch(config: BraveProviderConfig | null = null) {
+  if (config && config["api-key"]) {
     const key = config["api-key"];
     const delay = config.delay;
     return {

@@ -5,7 +5,7 @@ import { ToolFn, ToolManager, ToolSchema } from "./types.js";
 
 export function getTools(
   config: ProviderConfig,
-  options: ProgramOptions,
+  options?: ProgramOptions,
 ): ToolManager {
   const tools: Record<string, ToolFn> = {};
   const schemas: Record<string, ToolSchema> = {};
