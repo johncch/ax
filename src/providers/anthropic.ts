@@ -11,7 +11,14 @@ import {
   ToolCall,
 } from "./types.js";
 
-const DEFAULT_MODEL = "claude-3-5-haiku-latest";
+const Models = {
+  CLAUDE_3_7_SONNET_LATEST: "claude-3-7-sonnet-latest",
+  CLAUDE_3_7_SONNET_20250219: "claude-3-7-sonnet-20250219",
+  CLAUDE_3_5_HAIKU_LATEST: "claude-3-5-haiku-latest",
+  CLAUDE_3_5_HAIKU_20241022: "claude-3-5-haiku-20241022",
+};
+
+const DEFAULT_MODEL = Models.CLAUDE_3_5_HAIKU_LATEST;
 
 export class AnthropicProvider implements AIProvider {
   name = "Anthropic";

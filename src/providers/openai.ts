@@ -10,7 +10,20 @@ import {
   AIResponse,
 } from "./types.js";
 
-const DEFAULT_MODEL = "gpt-4o";
+/**
+ * This is a convenience constant dictionary that exposes the
+ * most common OpenAI models that this library may use.
+ */
+export const Models = {
+  GPT_4_1: "gpt-4.1",
+  GPT_4_1_MINI: "gpt-4.1-mini",
+  GPT_4_1_NANO: "gpt-4.1-nano",
+  GPT_4O: "gpt-4o",
+  O3_MINI: "o3-mini",
+  O4_MINI: "o4-mini",
+} as const;
+
+const DEFAULT_MODEL = Models.GPT_4_1;
 
 export class OpenAIProvider implements AIProvider {
   name = "OpenAI";
