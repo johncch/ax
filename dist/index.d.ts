@@ -1,5 +1,36 @@
 import { MessageParam, Tool } from '@anthropic-ai/sdk/src/resources/index.js';
 
+type JsonObject = Record<string, unknown>;
+declare const TaskStatus: {
+    readonly Running: "running";
+    readonly Success: "success";
+    readonly Fail: "fail";
+};
+type TaskStatus = (typeof TaskStatus)[keyof typeof TaskStatus];
+interface RecorderTaskInput {
+    type: "task";
+    status: TaskStatus;
+    id: string;
+    message: string;
+}
+interface RecorderLogInput {
+    message: string;
+    kind?: "heading" | "body";
+}
+type RecorderInput = RecorderTaskInput | RecorderLogInput | JsonObject;
+type RecorderEntry = {
+    level: LogLevel;
+    time: number;
+} & RecorderInput;
+declare enum LogLevel {
+    Trace = 10,
+    Debug = 20,
+    Info = 30,
+    Warn = 40,
+    Error = 50,
+    Fatal = 60
+}
+
 interface ToolSchema {
     name: string;
     description: string;
@@ -200,9 +231,11 @@ declare class Axle {
     private toolManager;
     private stats;
     private variables;
+    private recorder;
     constructor(config: ProviderConfig);
     use(toolConfig: ToolProviderConfig): Axle;
     execute(job: Job): Promise<any>;
+    get logs(): RecorderEntry[];
 }
 
 interface Stats {

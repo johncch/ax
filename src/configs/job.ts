@@ -1,7 +1,8 @@
 import YAML from "yaml";
+import { Recorder } from "../recorder/recorder.js";
 import { ProgramOptions } from "../types.js";
-import { Display } from "../utils/display.js";
 import { loadFile } from "../utils/file.js";
+
 import {
   AgentJob,
   AnthropicUse,
@@ -34,6 +35,7 @@ const DEFAULT_JOB_FORMATS = ["yaml", "yml", "json"];
 export async function getJobConfig(
   path: string | null,
   options: ProgramOptions,
+  recorder?: Recorder,
 ): Promise<JobConfig> {
   const { content, format } = await loadFile(
     path,
@@ -52,8 +54,8 @@ export async function getJobConfig(
   } else {
     throw new Error("Invalid job file format");
   }
-  Display.debug?.group("The Job Object");
-  Display.debug?.log(result);
+  recorder?.debug?.log({ kind: "heading", message: "The Job Object" });
+  recorder?.debug?.log(result);
 
   const errVal = { value: "" };
   if (isJobConfig(result, errVal)) {

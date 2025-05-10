@@ -7,9 +7,12 @@ import { getProviderConfig } from "./configs/service.js";
 import { JobConfig, ProviderConfig } from "./configs/types.js";
 import { getProvider } from "./providers/index.js";
 import { AIProvider } from "./providers/types.js";
+import { ConsoleWriter } from "./recorder/consoleWriter.js";
+import { LogWriter } from "./recorder/logWriter.js";
+import { Recorder } from "./recorder/recorder.js";
+import { LogLevel } from "./recorder/types.js";
 import { getTools } from "./tools/index.js";
 import { Stats } from "./types.js";
-import { Display } from "./utils/display.js";
 
 const program = new Command()
   .name("axle")
@@ -39,15 +42,24 @@ if (options.args) {
   });
 }
 
-Display.setOptions(options);
-if (options.log) {
-  await Display.initWriter();
-}
+// Create a new Recorder instance
+const recorder = new Recorder();
 if (options.debug) {
-  Display.debug?.group("Options");
-  Display.debug?.log(options);
-  Display.debug?.log("Additional Arguments:");
-  Display.debug?.log(variables);
+  recorder.level = LogLevel.Debug;
+}
+const consoleWriter = new ConsoleWriter();
+recorder.subscribe(consoleWriter);
+if (options.log) {
+  const logWriter = new LogWriter();
+  await logWriter.initialize();
+  recorder.subscribe(logWriter);
+}
+
+if (options.debug) {
+  recorder.debug?.log({ kind: "heading", message: "Options" });
+  recorder.debug?.log(options);
+  recorder.debug?.log("Additional Arguments:");
+  recorder.debug?.log(variables);
 }
 
 /**
@@ -57,10 +69,11 @@ let serviceConfig: ProviderConfig;
 let jobConfig: JobConfig;
 try {
   serviceConfig = await getProviderConfig(options.config ?? null, options);
-  jobConfig = await getJobConfig(options.job ?? null, options);
+  jobConfig = await getJobConfig(options.job ?? null, options, recorder);
 } catch (e) {
   console.error(`${chalk.red(e.message)}`);
-  Display.debug?.log(e.stack);
+  console.error(e.stack);
+  recorder.debug?.log(e.stack);
   console.log("");
   program.outputHelp();
   process.exit(1);
@@ -76,24 +89,27 @@ const toolManager = getTools(serviceConfig, options);
  */
 let provider: AIProvider;
 try {
-  provider = getProvider(jobConfig.using, serviceConfig, options);
+  provider = getProvider(jobConfig.using, serviceConfig, options, recorder);
 } catch (e) {
   console.error(`${chalk.red(e.message)}`);
-  Display.debug?.log(e.stack);
+  recorder.debug?.log(e.stack);
   console.log("");
   program.outputHelp();
   process.exit(1);
 }
 
-Display.info.group("All systems operational. Running job...");
+recorder.info.log({
+  kind: "heading",
+  message: "All systems operational. Running job...",
+});
 const startTime = Date.now();
 if (options.dryRun) {
-  Display.info.log("Dry run mode enabled. No API calls will be made.");
+  recorder.info.log("Dry run mode enabled. No API calls will be made.");
 }
 
 const stats: Stats = { in: 0, out: 0 };
 for (const [jobName, job] of Object.entries(jobConfig.jobs)) {
-  Display.info.group(`Executing "${jobName}"`);
+  recorder.info.log({ kind: "heading", message: `Executing "${jobName}"` });
   if (isBatchJob(job)) {
     await executeBatchCommand(
       job,
@@ -102,6 +118,7 @@ for (const [jobName, job] of Object.entries(jobConfig.jobs)) {
       variables,
       options,
       stats,
+      recorder,
     );
   } else {
     await executeAgentCommand(
@@ -111,13 +128,14 @@ for (const [jobName, job] of Object.entries(jobConfig.jobs)) {
       variables,
       options,
       stats,
+      recorder,
     );
   }
 }
 
-Display.info.group("Usage");
-Display.info.log(`Total run time: ${Date.now() - startTime}ms`);
-Display.info.log(`Input tokens: ${stats.in} `);
-Display.info.log(`Output tokens: ${stats.out} `);
+recorder.info.log({ kind: "heading", message: "Usage" });
+recorder.info.log(`Total run time: ${Date.now() - startTime}ms`);
+recorder.info.log(`Input tokens: ${stats.in} `);
+recorder.info.log(`Output tokens: ${stats.out} `);
 
-Display.info.group("Complete. Goodbye");
+recorder.info.log({ kind: "heading", message: "Complete. Goodbye" });

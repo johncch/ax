@@ -1,7 +1,8 @@
 import { SaveVarAction, WriteToDiskAction } from "../configs/types.js";
+import { Recorder } from "../recorder/recorder.js";
 import { ProgramOptions } from "../types.js";
-import { Display } from "../utils/display.js";
 import { replaceFilePattern, writeFileWithDirectories } from "../utils/file.js";
+
 import { replaceVariables } from "../utils/replace.js";
 import { FilePathInfo } from "../utils/types.js";
 import { Keys } from "../utils/variables.constants.js";
@@ -10,10 +11,11 @@ export async function execWriteToDisk(params: {
   action: WriteToDiskAction;
   variables: Record<string, any>;
   options: ProgramOptions;
+  recorder?: Recorder;
 }) {
-  const { action, variables, options } = params;
+  const { action, variables, options, recorder } = params;
   if (options.dryRun) {
-    Display.debug.log("Dry run: no action was taken");
+    recorder?.debug?.log("Dry run: no action was taken");
     return;
   }
   const output = action.output;
@@ -33,10 +35,11 @@ export function execSaveToVariables(params: {
   action: SaveVarAction;
   variables: Record<string, any>;
   options: ProgramOptions;
+  recorder?: Recorder;
 }) {
-  const { action, variables, options } = params;
+  const { action, variables, options, recorder } = params;
   if (options.dryRun) {
-    Display.debug.log("Dry run: no action was taken");
+    recorder?.debug?.log("Dry run: no action was taken");
     return;
   }
   const content = variables[Keys.Latest];

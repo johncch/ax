@@ -1,7 +1,7 @@
 import { glob } from "glob";
 import { readFile } from "node:fs/promises";
 import { ReplaceFile, ReplaceManyFiles } from "../configs/types.js";
-import { Display } from "./display.js";
+import { Recorder } from "../recorder/recorder.js";
 import { arrayify } from "./utils.js";
 
 export async function fileReplacer(
@@ -20,13 +20,14 @@ export async function fileReplacer(
 export async function manyFilesReplacer(
   content: string,
   r: ReplaceManyFiles,
+  recorder?: Recorder,
 ): Promise<string> {
   try {
     const names = arrayify(r.name);
     let replacement = "";
     for (const name of names) {
       const files = await glob(name);
-      Display.debug.log(
+      recorder?.debug?.log(
         `many-files parser. For glob "${name}", found ${files.length} files.`,
       );
       const replacements = await Promise.all(

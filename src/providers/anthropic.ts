@@ -1,7 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { assertIsAnthropicProviderConfig } from "../configs/service.js";
 import { AnthropicProviderConfig, AnthropicUse } from "../configs/types.js";
-import { Display } from "../utils/display.js";
+import { Recorder } from "../recorder/recorder.js";
+
 import { Chat } from "./chat.js";
 import {
   AIProvider,
@@ -24,8 +25,13 @@ export class AnthropicProvider implements AIProvider {
   name = "Anthropic";
   client: Anthropic;
   model: string;
+  recorder?: Recorder;
 
-  constructor(config: Partial<AnthropicProviderConfig>, use: AnthropicUse) {
+  constructor(
+    config: Partial<AnthropicProviderConfig>,
+    use: AnthropicUse,
+    recorder?: Recorder,
+  ) {
     const c = {
       ["api-key"]: config["api-key"] || use["api-key"],
       model: config.model || use.model || DEFAULT_MODEL,
@@ -37,13 +43,19 @@ export class AnthropicProvider implements AIProvider {
       this.client = new Anthropic({
         apiKey: c["api-key"],
       });
+      this.recorder = recorder;
     } catch (e) {
       throw new Error(`Invalid Anthropic configuration: ${e}`);
     }
   }
 
   createChatCompletionRequest(chat: Chat): AIRequest {
-    return new AnthropicChatRequest(this.client, this.model, chat);
+    return new AnthropicChatRequest(
+      this.client,
+      this.model,
+      chat,
+      this.recorder,
+    );
   }
 }
 
@@ -51,11 +63,18 @@ class AnthropicChatRequest implements AIRequest {
   chat: Chat;
   client: Anthropic;
   model: string;
+  recorder?: Recorder;
 
-  constructor(client: Anthropic, model: string, chat: Chat) {
+  constructor(
+    client: Anthropic,
+    model: string,
+    chat: Chat,
+    recorder?: Recorder,
+  ) {
     this.client = client;
     this.model = model;
     this.chat = chat;
+    this.recorder = recorder;
   }
 
   async execute(): Promise<any> {
@@ -64,7 +83,7 @@ class AnthropicChatRequest implements AIRequest {
       ...this.chat.toAnthropic(),
       max_tokens: getMaxTokens(this.model),
     };
-    Display.debug.log(request);
+    this.recorder?.debug?.log(request);
 
     let result: AIResponse;
     try {
@@ -85,7 +104,7 @@ class AnthropicChatRequest implements AIRequest {
       };
     }
 
-    Display.debug.log(result);
+    this.recorder?.debug?.log(result);
     return result;
   }
 }

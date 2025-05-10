@@ -1,7 +1,8 @@
 import OpenAI from "openai";
 import { assertIsOpenAIProviderConfig } from "../configs/service.js";
 import { OpenAIProviderConfig, OpenAIUse } from "../configs/types.js";
-import { Display } from "../utils/display.js";
+import { Recorder } from "../recorder/recorder.js";
+
 import { Chat } from "./chat.js";
 import {
   AIProvider,
@@ -29,8 +30,13 @@ export class OpenAIProvider implements AIProvider {
   name = "OpenAI";
   client: OpenAI;
   model: string | undefined;
+  recorder?: Recorder;
 
-  constructor(config: Partial<OpenAIProviderConfig>, use: OpenAIUse) {
+  constructor(
+    config: Partial<OpenAIProviderConfig>,
+    use: OpenAIUse,
+    recorder?: Recorder,
+  ) {
     const c = {
       ["api-key"]: config["api-key"] || use["api-key"],
       model: config.model || use.model || DEFAULT_MODEL,
@@ -40,13 +46,19 @@ export class OpenAIProvider implements AIProvider {
       assertIsOpenAIProviderConfig(c);
       this.model = c.model;
       this.client = new OpenAI({ apiKey: c["api-key"] });
+      this.recorder = recorder;
     } catch (e) {
       throw new Error(`Invalid OpenAI configuration: ${e}`);
     }
   }
 
   createChatCompletionRequest(chat: Chat) {
-    return new OpenAIChatCompletionRequest(this.client, this.model, chat);
+    return new OpenAIChatCompletionRequest(
+      this.client,
+      this.model,
+      chat,
+      this.recorder,
+    );
   }
 }
 
@@ -54,11 +66,18 @@ class OpenAIChatCompletionRequest implements AIRequest {
   chat: Chat;
   openai: OpenAI;
   model: string;
+  recorder?: Recorder;
 
-  constructor(openai: OpenAI, model: string | undefined, chat: Chat) {
+  constructor(
+    openai: OpenAI,
+    model: string | undefined,
+    chat: Chat,
+    recorder?: Recorder,
+  ) {
     this.openai = openai;
     this.model = model || "gpt-4o";
     this.chat = chat;
+    this.recorder = recorder;
   }
 
   async execute(): Promise<AIResponse> {
@@ -66,7 +85,7 @@ class OpenAIChatCompletionRequest implements AIRequest {
       model: this.model,
       ...this.chat.toOpenAI(),
     };
-    Display.debug.log(request);
+    this.recorder?.debug?.log(request);
 
     let result: AIResponse;
     try {
@@ -87,7 +106,7 @@ class OpenAIChatCompletionRequest implements AIRequest {
         raw: e,
       };
     }
-    Display.debug.log(result);
+    this.recorder?.debug?.log(result);
     return result;
   }
 }

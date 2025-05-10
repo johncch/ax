@@ -1,6 +1,6 @@
 import { assertIsOllamaProviderConfig } from "../configs/service.js";
 import { OllamaProviderConfig, OllamaUse } from "../configs/types.js";
-import { Display } from "../utils/display.js";
+import { Recorder } from "../recorder/recorder.js";
 import { Chat } from "./chat.js";
 import {
   AIProvider,
@@ -15,8 +15,13 @@ export class OllamaProvider implements AIProvider {
   readonly name = "Ollama";
   url: string;
   model: string;
+  recorder?: Recorder;
 
-  constructor(config: Partial<OllamaProviderConfig>, use: OllamaUse) {
+  constructor(
+    config: Partial<OllamaProviderConfig>,
+    use: OllamaUse,
+    recorder?: Recorder,
+  ) {
     const c = {
       model: config.model ?? use.model,
       url: config.url ?? use.url ?? DEFAULT_URL,
@@ -26,13 +31,19 @@ export class OllamaProvider implements AIProvider {
       assertIsOllamaProviderConfig(c);
       this.url = c.url;
       this.model = c.model;
+      this.recorder = recorder;
     } catch (e) {
       throw new Error(`Invalid Ollama configuration: ${e}`);
     }
   }
 
   createChatCompletionRequest(chat: Chat): AIRequest {
-    return new OllamaChatCompletionRequest(this.url, this.model, chat);
+    return new OllamaChatCompletionRequest(
+      this.url,
+      this.model,
+      chat,
+      this.recorder,
+    );
   }
 }
 
@@ -40,11 +51,13 @@ class OllamaChatCompletionRequest implements AIRequest {
   chat: Chat;
   url: string;
   model: string;
+  recorder?: Recorder;
 
-  constructor(url: string, model: string, chat: Chat) {
+  constructor(url: string, model: string, chat: Chat, recorder?: Recorder) {
     this.url = url;
     this.model = model;
     this.chat = chat;
+    this.recorder = recorder;
   }
 
   async execute(): Promise<AIResponse> {
@@ -57,7 +70,7 @@ class OllamaChatCompletionRequest implements AIRequest {
       },
     };
 
-    Display.debug.log(requestBody);
+    this.recorder?.debug?.log(requestBody);
 
     let result: AIResponse;
     try {
@@ -105,7 +118,7 @@ class OllamaChatCompletionRequest implements AIRequest {
       };
     }
 
-    Display.debug.log(result);
+    this.recorder?.debug?.log(result);
     return result;
   }
 }

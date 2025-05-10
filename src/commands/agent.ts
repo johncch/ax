@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { executeChatAction } from "../actions/chat.js";
 import { execSaveToVariables, execWriteToDisk } from "../actions/system.js";
 import { executeToolAction } from "../actions/tools.js";
@@ -12,9 +11,10 @@ import {
 import { Job, Step } from "../configs/types.js";
 import { Chat } from "../providers/chat.js";
 import { AIProvider } from "../providers/types.js";
+import { Recorder } from "../recorder/recorder.js";
+import { TaskStatus } from "../recorder/types.js";
 import { ToolManager } from "../tools/types.js";
 import { ProgramOptions, Stats } from "../types.js";
-import { Display } from "../utils/display.js";
 import { DynamicArrayIterator } from "../utils/iterator.js";
 import { friendly } from "../utils/utils.js";
 import { Keys } from "../utils/variables.constants.js";
@@ -27,11 +27,18 @@ export async function executeAgentCommand(
   variables: Record<string, any>,
   options?: ProgramOptions,
   stats?: Stats,
+  recorder?: Recorder,
 ): Promise<SerializedExecutionResponse> {
-  const id = randomUUID();
+  const id = crypto.randomUUID();
   const { steps } = job;
 
-  Display.progress.add(id, `[${friendly(id)}] Starting job`);
+  recorder.info.log({
+    type: "task",
+    id,
+    status: TaskStatus.Running,
+    message: `[${friendly(id)}] Starting job`,
+  });
+
   const chat = new Chat();
   if (job.tools) {
     const toolSchemas = toolManager.getSchemas(job.tools);
@@ -47,10 +54,13 @@ export async function executeAgentCommand(
   const iterator = new DynamicArrayIterator<Step>(steps);
 
   for (const [index, step] of iterator) {
-    Display.progress.update(
+    recorder.info.log({
+      type: "task",
+      status: TaskStatus.Running,
       id,
-      `[${friendly(id)}] Processing step ${index + 1}: ${step.action}`,
-    );
+      message: `[${friendly(id)}] Processing step ${index + 1}: ${step.action}`,
+    });
+
     if (isChatAction(step) || isToolRespondAction(step)) {
       const { action, error, toolCalls } = await executeChatAction({
         step,
@@ -59,6 +69,7 @@ export async function executeAgentCommand(
         stats,
         variables,
         options,
+        recorder,
       });
       if (error) {
         hasError = true;
@@ -83,6 +94,7 @@ export async function executeAgentCommand(
           toolManager,
           variables,
           options,
+          recorder,
         });
       } catch (error) {
         hasError = true;
@@ -93,23 +105,32 @@ export async function executeAgentCommand(
         action: step,
         variables,
         options,
+        recorder,
       });
     } else if (isWriteToDiskAction(step)) {
       await execWriteToDisk({
         action: step,
         variables,
         options,
+        recorder,
       });
     }
   }
 
   if (hasError) {
-    Display.progress.fail(id, `[${friendly(id)}] Failed`);
-  } else {
-    Display.progress.succeed(
+    recorder.info.log({
+      type: "task",
+      status: TaskStatus.Fail,
       id,
-      `[${friendly(id)}] completed ${iterator.length} steps`,
-    );
+      message: `[${friendly(id)}] Failed`,
+    });
+  } else {
+    recorder.info.log({
+      type: "task",
+      status: TaskStatus.Success,
+      id,
+      message: `[${friendly(id)}] Completed ${iterator.length} steps`,
+    });
   }
 
   return {

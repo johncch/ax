@@ -1,4 +1,5 @@
 import { ProviderConfig, Using } from "../configs/types.js";
+import { Recorder } from "../recorder/recorder.js";
 import { ProgramOptions } from "../types.js";
 import { AnthropicProvider } from "./anthropic.js";
 import { OllamaProvider } from "./ollama.js";
@@ -9,15 +10,16 @@ export function getProvider(
   engine: Using,
   config: ProviderConfig,
   options?: ProgramOptions,
+  recorder?: Recorder,
 ): AIProvider {
   if (engine.engine == "openai") {
-    return new OpenAIProvider(config.openai, engine);
+    return new OpenAIProvider(config.openai, engine, recorder);
   }
   if (engine.engine == "anthropic") {
-    return new AnthropicProvider(config.anthropic, engine);
+    return new AnthropicProvider(config.anthropic, engine, recorder);
   }
   if (engine.engine == "ollama") {
-    return new OllamaProvider(config.ollama, engine);
+    return new OllamaProvider(config.ollama, engine, recorder);
   }
 
   throw new Error(

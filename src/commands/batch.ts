@@ -1,11 +1,11 @@
 import { glob } from "glob";
-import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { BatchJob, SkipOptions } from "../configs/types.js";
 import { AIProvider } from "../providers/types.js";
+import { Recorder } from "../recorder/recorder.js";
+import { TaskStatus } from "../recorder/types.js";
 import { ToolManager } from "../tools/types.js";
 import { ProgramOptions, Stats } from "../types.js";
-import { Display } from "../utils/display.js";
 import { fileExists, pathToComponents } from "../utils/file.js";
 import { FilePathInfo } from "../utils/types.js";
 import { arrayify } from "../utils/utils.js";
@@ -19,8 +19,9 @@ export async function executeBatchCommand(
   variables: Record<string, any>,
   options: ProgramOptions,
   stats: Stats,
+  recorder?: Recorder,
 ) {
-  const id = randomUUID();
+  const id = crypto.randomUUID();
   const runs: Run[] = [];
 
   if (!job.batch) {
@@ -56,12 +57,17 @@ export async function executeBatchCommand(
   }
 
   if (runs.length === 0) {
-    Display.info.log("No runs to execute");
+    recorder?.info.log("No runs to execute");
     return;
   }
 
   let completed = 0;
-  Display.progress.add(id, `Working on 0/${runs.length}`);
+  recorder.info.log({
+    type: "task",
+    status: TaskStatus.Running,
+    id,
+    message: `Working on 0/${runs.length}`,
+  });
 
   const executeRun = async (run: Run) => {
     try {
@@ -72,12 +78,18 @@ export async function executeBatchCommand(
         { ...run.variables, ...variables },
         options,
         stats,
+        recorder,
       );
     } catch (e) {
       console.error(e);
     } finally {
       completed++;
-      Display.progress.add(id, `Working on ${completed}/${runs.length}`);
+      recorder.info.log({
+        type: "task",
+        status: TaskStatus.Running,
+        id,
+        message: `Working on ${completed}/${runs.length}`,
+      });
     }
   };
 
@@ -87,7 +99,12 @@ export async function executeBatchCommand(
     await Promise.all(batch.map(executeRun));
   }
 
-  Display.progress.succeed(id, `All jobs (${runs.length}) completed`);
+  recorder.info.log({
+    type: "task",
+    status: TaskStatus.Success,
+    id,
+    message: `All jobs (${runs.length}) completed`,
+  });
 }
 
 async function processSkipRules(

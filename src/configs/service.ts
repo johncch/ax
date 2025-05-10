@@ -1,7 +1,8 @@
 import YAML from "yaml";
+import { Recorder } from "../recorder/recorder.js";
 import { ProgramOptions } from "../types.js";
-import { Display } from "../utils/display.js";
 import { loadFile } from "../utils/file.js";
+
 import {
   AnthropicProviderConfig,
   OllamaProviderConfig,
@@ -16,6 +17,7 @@ const DEFAULT_CONFIG_FORMATS = ["yaml", "yml", "json"];
 export async function getProviderConfig(
   configPath: string | null,
   options: ProgramOptions,
+  recorder?: Recorder,
 ): Promise<ProviderConfig> {
   const { content, format } = await loadFile(
     configPath,
@@ -34,8 +36,8 @@ export async function getProviderConfig(
   } else {
     throw new Error("Invalid config file format");
   }
-  Display.debug.group("The Config Object");
-  Display.debug.log(result);
+  recorder?.debug?.log({ kind: "heading", message: "The Config Object" });
+  recorder?.debug?.log(result);
 
   const valError = { value: "" };
   if (isProviderConfig(result, valError)) {

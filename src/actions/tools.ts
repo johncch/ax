@@ -1,7 +1,8 @@
 import { ToolAction } from "../configs/types.js";
+import { Recorder } from "../recorder/recorder.js";
 import { ToolManager } from "../tools/types.js";
 import { ProgramOptions } from "../types.js";
-import { Display } from "../utils/display.js";
+
 import { Keys } from "../utils/variables.constants.js";
 
 export async function executeToolAction(params: {
@@ -9,8 +10,9 @@ export async function executeToolAction(params: {
   toolManager: ToolManager;
   variables: Record<string, any>;
   options: ProgramOptions;
+  recorder?: Recorder;
 }) {
-  const { step, toolManager, variables } = params;
+  const { step, toolManager, variables, recorder } = params;
 
   const toolCalls = step.toolCalls;
   const promises = [];
@@ -31,5 +33,5 @@ export async function executeToolAction(params: {
 
   const results = await Promise.all(promises);
   variables[Keys.Latest] = results;
-  Display.debug.log(results);
+  recorder?.debug?.log(results);
 }

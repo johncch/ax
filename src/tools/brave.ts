@@ -1,5 +1,5 @@
 import { BraveProviderConfig } from "../configs/types.js";
-import { Display } from "../utils/display.js";
+import { Recorder } from "../recorder/recorder.js";
 import { delay } from "../utils/utils.js";
 import { ToolSchema } from "./types.js";
 
@@ -18,26 +18,36 @@ export const schema: ToolSchema = {
   },
 };
 
-export function getBraveSearch(config: BraveProviderConfig | null = null) {
+export function getBraveSearch(
+  config: BraveProviderConfig | null = null,
+  recorder?: Recorder,
+) {
   if (config && config["api-key"]) {
     const key = config["api-key"];
     const delay = config.delay;
     return {
       name: "braveSearch",
       schema: schema,
-      fn: createBraveSearch(key, delay),
+      fn: createBraveSearch(key, delay, recorder),
     };
   }
-  Display.debug.log("Brave search API key not found in config");
+  recorder?.debug?.log("Brave search API key not found in config");
   return null;
 }
 
-function createBraveSearch(key: string, throttle: number = undefined) {
+function createBraveSearch(
+  key: string,
+  throttle: number = undefined,
+  recorder?: Recorder,
+) {
   let lastExecTime = 0;
 
   return async (params: { searchTerm: string }) => {
     const { searchTerm } = params;
-    Display.debug.group(`Brave: searching for ${searchTerm}`);
+    recorder.debug?.log({
+      kind: "heading",
+      message: `Brave: searching for ${searchTerm}`,
+    });
 
     if (throttle) {
       while (Date.now() - lastExecTime < throttle) {

@@ -6,8 +6,8 @@ import {
   AIProviderStopReason,
   ChatItemAssistant,
 } from "../providers/types.js";
+import { Recorder } from "../recorder/recorder.js";
 import { ProgramOptions, Stats } from "../types.js";
-import { Display } from "../utils/display.js";
 import { fileReplacer, manyFilesReplacer } from "../utils/replace.js";
 import { Keys } from "../utils/variables.constants.js";
 
@@ -18,8 +18,9 @@ export async function executeChatAction(params: {
   stats: Stats;
   variables: Record<string, any>;
   options?: ProgramOptions;
+  recorder?: Recorder;
 }) {
-  const { step, chat, provider, stats, variables, options } = params;
+  const { step, chat, provider, stats, variables, options, recorder } = params;
 
   if (isChatAction(step)) {
     let { content, system } = step;
@@ -29,6 +30,7 @@ export async function executeChatAction(params: {
         variables,
         step.content,
         step.system,
+        recorder,
       );
     }
 
@@ -50,7 +52,7 @@ export async function executeChatAction(params: {
 
   // Execute
   if (options?.dryRun) {
-    Display.debug.log(chat);
+    recorder?.debug?.log(chat);
     return { action: "continue" };
   }
 
@@ -89,7 +91,7 @@ export async function executeChatAction(params: {
       }
     }
   }
-  Display.debug.log(response);
+  recorder?.debug?.log(response);
 
   if (response.type === "error") {
     return {
@@ -104,6 +106,7 @@ async function handleReplace(
   variables: Record<string, any>,
   content: string,
   system?: string,
+  recorder?: Recorder,
 ) {
   for (const r of replace) {
     switch (r.source) {
@@ -114,9 +117,9 @@ async function handleReplace(
         }
         break;
       case "many-files":
-        content = await manyFilesReplacer(content, r);
+        content = await manyFilesReplacer(content, r, recorder);
         if (system) {
-          system = await manyFilesReplacer(system, r);
+          system = await manyFilesReplacer(system, r, recorder);
         }
         break;
       default:
