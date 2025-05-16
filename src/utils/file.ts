@@ -1,16 +1,21 @@
 import { glob } from "glob";
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { Recorder } from "../recorder/recorder.js";
 import { FilePathInfo, LoadFileResults } from "./types.js";
 
-export async function loadFile(
-  path: string | null,
+export async function loadFile({
+  path,
+  defaults,
+  loader = "File",
+}: {
+  path: string | null;
   defaults: {
     name: string;
     formats: string[];
-  },
-  loader: string = "File",
-): Promise<LoadFileResults> {
+  };
+  loader?: string;
+}): Promise<LoadFileResults> {
   let fileContents: string | null = null;
   let filePath: string = "";
   if (path) {
@@ -41,6 +46,24 @@ export async function loadFile(
   };
 }
 
+export async function loadManyFiles(filenames: string[], recorder?: Recorder) {
+  let replacement = "";
+  for (const name of filenames) {
+    const files = await glob(name);
+    recorder?.debug?.log(
+      `many-files parser. For glob "${name}", found ${files.length} files.`,
+    );
+    const replacements = await Promise.all(
+      files.map(async (name) => {
+        const c = await readFile(name, "utf-8");
+        return name + ":\n" + c;
+      }),
+    );
+    replacement += replacements.join("\n");
+  }
+  return replacement;
+}
+
 export function replaceFilePattern(pattern: string, path: FilePathInfo) {
   pattern = pattern.replace("**/*", "**"); // these are equivalent
   const regex = /(?<asterisks>\*{1,2})(?<extension>\.[^\\/]+)?/;
@@ -49,15 +72,15 @@ export function replaceFilePattern(pattern: string, path: FilePathInfo) {
   if (match) {
     let replacement = "";
     if (match.groups?.asterisks.length == 1) {
-      replacement += path.fileNameStem;
+      replacement += path.stem;
     } else {
-      replacement += path.directoryPath + path.fileNameStem;
+      replacement += path.dir + path.stem;
     }
 
     if (match.groups?.extension) {
       replacement += match.groups.extension;
     } else {
-      replacement += path.fileExtension;
+      replacement += path.ext;
     }
 
     return pattern.replace(match[0], replacement);
@@ -71,20 +94,23 @@ export function pathToComponents(fullpath: string): FilePathInfo | null {
   const matches = fullpath.match(regex);
   if (matches && matches.length > 0 && matches.groups) {
     return {
-      absolutePath: fullpath,
-      directoryPath: fullpath.replace(matches[0], ""),
-      fileExtension: matches.groups.extension,
-      fileNameStem: matches.groups.name,
-      fullFileName: matches[0],
+      abs: fullpath,
+      dir: fullpath.replace(matches[0], ""),
+      ext: matches.groups.extension,
+      stem: matches.groups.name,
+      name: matches[0],
     };
   }
   return null;
 }
 
-export async function fileExists(
-  baseName: string,
-  directory: string = ".",
-): Promise<boolean> {
+export async function fileExists({
+  baseName,
+  directory = ".",
+}: {
+  baseName: string;
+  directory?: string;
+}): Promise<boolean> {
   try {
     const files = await glob(`${directory}/${baseName}.*`);
     return files.length > 0;
@@ -105,10 +131,13 @@ export async function ensureDirectoryExistence(filePath: string) {
 }
 
 // Function to write the file
-export async function writeFileWithDirectories(
-  filePath: string,
-  content: string,
-) {
+export async function writeFileWithDirectories({
+  filePath,
+  content,
+}: {
+  filePath: string;
+  content: string;
+}) {
   await ensureDirectoryExistence(filePath);
   await writeFile(filePath, content);
 }

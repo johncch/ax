@@ -8,10 +8,13 @@ export interface ToolSchema {
   };
 }
 
-export type ToolFn = (...args: any[]) => Promise<any>;
+export interface ToolExecutable {
+  name: string;
+  schema: ToolSchema;
+  setConfig?: (config: { [key: string]: any }) => void;
+  execute: (params: { [key: string]: any }) => Promise<string>;
+}
 
-export interface ToolManager {
-  tools: Record<string, ToolFn>;
-  schemas: Record<string, object>;
-  getSchemas: (names: string[]) => ToolSchema[];
+export interface ToolConstructor<T extends ToolExecutable = ToolExecutable> {
+  new (...args: any[]): T;
 }

@@ -1,13 +1,12 @@
-/* File Types */
 export interface LoadFileResults {
   content: string;
   format: string;
 }
 
 export interface FilePathInfo {
-  absolutePath: string;
-  directoryPath: string;
-  fileExtension: string;
-  fileNameStem: string;
-  fullFileName: string;
+  abs: string; // Absolute path
+  dir: string; // Directory path
+  ext: string; // File extension
+  stem: string; // File name stem
+  name: string; // Full file name
 }

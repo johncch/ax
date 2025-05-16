@@ -1,36 +1,16 @@
-import { ProviderConfig } from "../configs/types.js";
-import { Recorder } from "../recorder/recorder.js";
-import { ProgramOptions } from "../types.js";
-import { getBraveSearch } from "./brave.js";
-import { ToolFn, ToolManager, ToolSchema } from "./types.js";
+import { default as braveSearchTool } from "./brave.js";
+import { default as calculatorTool } from "./calculator.js";
+import { ToolRegistry } from "./registry.js";
 
-export function getTools(
-  config: ProviderConfig,
-  options?: ProgramOptions,
-  recorder?: Recorder,
-): ToolManager {
-  const tools: Record<string, ToolFn> = {};
-  const schemas: Record<string, ToolSchema> = {};
-  // Brave Search
-  const braveSearch = getBraveSearch(config.brave, recorder);
-  if (braveSearch) {
-    tools.brave = braveSearch.fn;
-    schemas.brave = braveSearch.schema;
+let toolRegistry: ToolRegistry;
+
+export function getToolRegistry() {
+  if (!toolRegistry) {
+    toolRegistry = new ToolRegistry();
+    toolRegistry.register(calculatorTool);
+    toolRegistry.register(braveSearchTool);
   }
-
-  const getSchemas = (names: string[]) => {
-    const result: ToolSchema[] = [];
-    for (const name of names) {
-      if (schemas[name]) {
-        result.push(schemas[name]);
-      }
-    }
-    return result;
-  };
-
-  return {
-    tools,
-    schemas,
-    getSchemas,
-  };
+  return toolRegistry;
 }
+
+export * from "./types.js";

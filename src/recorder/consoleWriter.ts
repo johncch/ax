@@ -28,10 +28,15 @@ export class ConsoleWriter implements RecorderWriter {
   private tasks: Map<string, Task> = new Map();
   private entries: RecorderEntry[] = [];
 
+  private truncate = 0;
   private intervalId: NodeJS.Timeout | null = null;
   private spinnerInterval = 80; // ms
   private lastRender = "";
   private isRendering = false;
+
+  constructor(options: { truncate?: number }) {
+    this.truncate = options.truncate ?? 0;
+  }
 
   private startSpinner(): void {
     if (this.intervalId !== null) return;
@@ -83,9 +88,9 @@ export class ConsoleWriter implements RecorderWriter {
         const { level, time, kind, message: msg = "", ...data } = entry;
         const message = msg as string;
         if (kind === "heading") {
-          heading(level, message, data);
+          heading(level, message, data, { truncate: this.truncate });
         } else {
-          body(level, message, data);
+          body(level, message, data, { truncate: this.truncate });
         }
       }
     }
@@ -93,7 +98,6 @@ export class ConsoleWriter implements RecorderWriter {
 
     // Prepare new render
     let output = "";
-
     for (const task of this.tasks.values()) {
       const icon = chalk.cyan(icons.spinning[task.frameIndex]);
       task.frameIndex = (task.frameIndex + 1) % icons.spinning.length;
@@ -108,7 +112,6 @@ export class ConsoleWriter implements RecorderWriter {
 
   handleEvent(event: RecorderEntry): void {
     if (isTask(event)) {
-      // Handle task events
       const { id, message, status } = event;
       if (status === TaskStatus.Running) {
         this.tasks.set(id, {
@@ -124,7 +127,6 @@ export class ConsoleWriter implements RecorderWriter {
           task.text = message;
         }
       }
-      return;
     } else {
       this.entries.push(event);
     }
@@ -154,21 +156,45 @@ function isTask(value: RecorderInput): value is RecorderTaskInput {
   );
 }
 
-function heading(level: LogLevel, message: string, data: Record<string, any>) {
+function heading(
+  level: LogLevel,
+  message: string,
+  data: Record<string, any>,
+  options: { truncate: number },
+) {
   const l = level >= LogLevel.Info ? chalk.blue : chalk.gray;
   const b = level >= LogLevel.Info ? chalk.whiteBright.bold : chalk.white;
   console.log(`${l("==>")} ${b(message)}`);
-  for (const [key, value] of Object.entries(data)) {
-    const v = JSON.stringify(value);
-    console.log(`\t${key}: ${v}`);
-  }
+  values(level, data, options);
 }
 
-function body(level: LogLevel, message: string, data: Record<string, any>) {
+function body(
+  level: LogLevel,
+  message: string,
+  data: Record<string, any>,
+  options: { truncate: number },
+) {
   const b = level >= LogLevel.Info ? chalk.white : chalk.gray;
   if (message) console.log(b(message));
+  values(level, data, options);
+}
+
+function values(
+  level: LogLevel,
+  data: Record<string, any>,
+  options: { truncate: number },
+) {
+  const b = level >= LogLevel.Info ? chalk.white : chalk.gray;
   for (const [key, value] of Object.entries(data)) {
-    const v = JSON.stringify(value);
+    const v =
+      options.truncate > 0
+        ? JSON.stringify(value, (key, value) => {
+            if (typeof value === "string" && value.length > options.truncate) {
+              return value.slice(0, options.truncate) + "<...>";
+            }
+            return value;
+          })
+        : JSON.stringify(value);
     console.log(b(`\t${key}: ${v}`));
   }
 }

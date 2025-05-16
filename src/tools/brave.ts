@@ -1,9 +1,9 @@
-import { BraveProviderConfig } from "../configs/types.js";
+import { BraveProviderConfig } from "../cli/configs/types.js";
 import { Recorder } from "../recorder/recorder.js";
 import { delay } from "../utils/utils.js";
-import { ToolSchema } from "./types.js";
+import { ToolExecutable, ToolSchema } from "./types.js";
 
-export const schema: ToolSchema = {
+const braveSearchToolSchema: ToolSchema = {
   name: "brave",
   description: "Perform a search using the Brave search engine",
   parameters: {
@@ -18,46 +18,46 @@ export const schema: ToolSchema = {
   },
 };
 
-export function getBraveSearch(
-  config: BraveProviderConfig | null = null,
-  recorder?: Recorder,
-) {
-  if (config && config["api-key"]) {
-    const key = config["api-key"];
-    const delay = config.delay;
-    return {
-      name: "braveSearch",
-      schema: schema,
-      fn: createBraveSearch(key, delay, recorder),
-    };
+class BraveSearchTool implements ToolExecutable {
+  name = "brave";
+  schema: ToolSchema = braveSearchToolSchema;
+
+  apiKey: string;
+  throttle: number | undefined;
+  lastExecTime: number = 0;
+
+  constructor(config?: BraveProviderConfig) {
+    if (config) {
+      this.apiKey = config["api-key"];
+      this.throttle = config.delay ?? undefined;
+    }
   }
-  recorder?.debug?.log("Brave search API key not found in config");
-  return null;
-}
 
-function createBraveSearch(
-  key: string,
-  throttle: number = undefined,
-  recorder?: Recorder,
-) {
-  let lastExecTime = 0;
+  setConfig(config: BraveProviderConfig) {
+    this.apiKey = config["api-key"];
+    this.throttle = config.delay ?? undefined;
+  }
 
-  return async (params: { searchTerm: string }) => {
+  async execute(
+    params: { searchTerm: string },
+    context: { recorder?: Recorder } = {},
+  ) {
     const { searchTerm } = params;
-    recorder.debug?.log({
+    const { recorder } = context;
+    recorder?.debug?.log({
       kind: "heading",
       message: `Brave: searching for ${searchTerm}`,
     });
 
-    if (throttle) {
-      while (Date.now() - lastExecTime < throttle) {
-        await delay(throttle - (Date.now() - lastExecTime));
+    if (this.throttle) {
+      while (Date.now() - this.lastExecTime < this.throttle) {
+        await delay(this.throttle - (Date.now() - this.lastExecTime));
       }
-      lastExecTime = Date.now();
+      this.lastExecTime = Date.now();
     }
 
     try {
-      const apiKey = key;
+      const apiKey = this.apiKey;
       const endpoint = "https://api.search.brave.com/res/v1/web/search";
 
       const url = new URL(endpoint);
@@ -82,5 +82,8 @@ function createBraveSearch(
       console.error("Error fetching search results:", error);
       throw error;
     }
-  };
+  }
 }
+
+const braveSearchTool = new BraveSearchTool();
+export default braveSearchTool;

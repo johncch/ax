@@ -1,0 +1,15 @@
+using:
+  engine: openai
+  model: gpt-4o
+
+jobs:
+  greeting:
+    type: serial
+    steps:
+      - uses: chat
+        system: |
+          You are a friendly assistant whose only job is to provide a warm greeting.
+        message: |
+          Please provide a friendly greeting for {{name}}.
+      - uses: write-to-disk
+        output: ./output/greeting-{name}.txt

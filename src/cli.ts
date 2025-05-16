@@ -1,18 +1,18 @@
 import { Command } from "@commander-js/extra-typings";
 import chalk from "chalk";
-import { executeAgentCommand } from "./commands/agent.js";
-import { executeBatchCommand } from "./commands/batch.js";
-import { getJobConfig, isBatchJob } from "./configs/job.js";
-import { getProviderConfig } from "./configs/service.js";
-import { JobConfig, ProviderConfig } from "./configs/types.js";
-import { getProvider } from "./providers/index.js";
-import { AIProvider } from "./providers/types.js";
+import { getProvider } from "./ai/index.js";
+import { AIProvider } from "./ai/types.js";
+import { isBatchJob } from "./cli/configs/job.js";
+import { getJobConfig, getProviderConfig } from "./cli/configs/loaders.js";
+import { JobConfig, ProviderConfig } from "./cli/configs/types.js";
 import { ConsoleWriter } from "./recorder/consoleWriter.js";
 import { LogWriter } from "./recorder/logWriter.js";
 import { Recorder } from "./recorder/recorder.js";
 import { LogLevel } from "./recorder/types.js";
-import { getTools } from "./tools/index.js";
+import { getToolRegistry } from "./tools/index.js";
 import { Stats } from "./types.js";
+import { concurrentWorkflow } from "./workflows/concurrent.js";
+import { serialWorkflow } from "./workflows/serial.js";
 
 const program = new Command()
   .name("axle")
@@ -25,7 +25,14 @@ const program = new Command()
   .option("-c, --config <path>", "Path to the config file")
   .option("-j, --job <path>", "Path to the job file")
   .option("--no-log", "Do not write the output to a log file")
+  .option("--no-warn-unused", "Do not warn about unused variables")
   .option("-d, --debug", "Print additional debug information")
+  .option(
+    "--truncate <num>",
+    "Truncate printed strings to a certain number of characters, 0 to disable",
+    parseInt,
+    100,
+  )
   .option("--args <args...>", "Additional arguments in the form key=value");
 
 program.parse(process.argv);
@@ -47,7 +54,7 @@ const recorder = new Recorder();
 if (options.debug) {
   recorder.level = LogLevel.Debug;
 }
-const consoleWriter = new ConsoleWriter();
+const consoleWriter = new ConsoleWriter(options);
 recorder.subscribe(consoleWriter);
 if (options.log) {
   const logWriter = new LogWriter();
@@ -68,8 +75,16 @@ if (options.debug) {
 let serviceConfig: ProviderConfig;
 let jobConfig: JobConfig;
 try {
-  serviceConfig = await getProviderConfig(options.config ?? null, options);
-  jobConfig = await getJobConfig(options.job ?? null, options, recorder);
+  serviceConfig = await getProviderConfig({
+    configPath: options.config ?? null,
+    options,
+    recorder,
+  });
+  jobConfig = await getJobConfig({
+    path: options.job ?? null,
+    options,
+    recorder,
+  });
 } catch (e) {
   console.error(`${chalk.red(e.message)}`);
   console.error(e.stack);
@@ -80,16 +95,16 @@ try {
 }
 
 /**
- * Setup tools
- */
-const toolManager = getTools(serviceConfig, options);
-
-/**
  * Execute the job
  */
 let provider: AIProvider;
 try {
-  provider = getProvider(jobConfig.using, serviceConfig, options, recorder);
+  provider = getProvider({
+    useConfig: jobConfig.using,
+    config: serviceConfig,
+    options,
+    recorder,
+  });
 } catch (e) {
   console.error(`${chalk.red(e.message)}`);
   recorder.debug?.log(e.stack);
@@ -97,6 +112,8 @@ try {
   program.outputHelp();
   process.exit(1);
 }
+
+getToolRegistry().setConfig(serviceConfig);
 
 recorder.info.log({
   kind: "heading",
@@ -110,26 +127,26 @@ if (options.dryRun) {
 const stats: Stats = { in: 0, out: 0 };
 for (const [jobName, job] of Object.entries(jobConfig.jobs)) {
   recorder.info.log({ kind: "heading", message: `Executing "${jobName}"` });
+  let response: any;
   if (isBatchJob(job)) {
-    await executeBatchCommand(
-      job,
+    response = await concurrentWorkflow(job).execute({
       provider,
-      toolManager,
       variables,
       options,
       stats,
       recorder,
-    );
+    });
   } else {
-    await executeAgentCommand(
-      job,
+    response = await serialWorkflow(job).execute({
       provider,
-      toolManager,
       variables,
       options,
       stats,
       recorder,
-    );
+    });
+  }
+  if (response) {
+    recorder.info.log(response);
   }
 }
 

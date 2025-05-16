@@ -31,6 +31,88 @@ declare enum LogLevel {
     Fatal = 60
 }
 
+type OllamaProviderConfig = {
+    url: string;
+    model: string;
+};
+type AnthropicProviderConfig = {
+    "api-key": string;
+    model: string;
+};
+type OpenAIProviderConfig = {
+    "api-key": string;
+    model: string;
+};
+interface BraveProviderConfig {
+    "api-key": string;
+    delay?: number;
+}
+type AIProviderConfig = {
+    openai?: Partial<OpenAIProviderConfig> & {
+        "api-key": string;
+    };
+    anthropic?: Partial<AnthropicProviderConfig> & {
+        "api-key": string;
+    };
+    ollama?: Partial<OllamaProviderConfig>;
+};
+type ToolProviderConfig = {
+    brave?: BraveProviderConfig;
+};
+type ProviderConfig = AIProviderConfig & ToolProviderConfig;
+type Job = SerialJob | BatchJob;
+interface SerialJob {
+    type: "serial";
+    tools?: string[];
+    steps: Step[];
+}
+interface BatchJob {
+    type: "batch";
+    tools?: string[];
+    batch: BatchOptions[];
+    steps: Step[];
+}
+interface SkipOptions {
+    type: "file-exist";
+    pattern: string;
+}
+interface BatchOptions {
+    type: "files";
+    source: string;
+    bind: string;
+    ["skip-if"]?: SkipOptions[];
+}
+type Step = ChatStep | WriteToDiskStep;
+interface StepBase {
+    readonly uses: string;
+}
+interface ChatStep extends StepBase {
+    uses: "chat";
+    system?: string;
+    message: string;
+    replace?: Replace[];
+    tools?: string[];
+}
+interface WriteToDiskStep extends StepBase {
+    uses: "write-to-disk";
+    output: string;
+}
+interface Replace {
+    source: "file";
+    pattern: string;
+    files: string | string[];
+}
+
+declare class Axle {
+    private provider;
+    private stats;
+    private variables;
+    private recorder;
+    constructor(config: ProviderConfig);
+    execute(job: Job): Promise<any>;
+    get logs(): RecorderEntry[];
+}
+
 interface ToolSchema {
     name: string;
     description: string;
@@ -40,11 +122,41 @@ interface ToolSchema {
         required: string[];
     };
 }
-type ToolFn = (...args: any[]) => Promise<any>;
-interface ToolManager {
-    tools: Record<string, ToolFn>;
-    schemas: Record<string, object>;
-    getSchemas: (names: string[]) => ToolSchema[];
+interface ToolExecutable {
+    name: string;
+    schema: ToolSchema;
+    setConfig?: (config: {
+        [key: string]: any;
+    }) => void;
+    execute: (params: {
+        [key: string]: any;
+    }) => Promise<string>;
+}
+
+interface Stats {
+    in: number;
+    out: number;
+}
+interface Task {
+    readonly type: string;
+}
+
+declare class Instruct implements Task {
+    readonly type = "instruct";
+    prompt: string;
+    system: string | null;
+    inputs: Record<string, string>;
+    outputFormat: Record<string, string>;
+    tools: Record<string, ToolExecutable>;
+    constructor(prompt: string, outputFormat?: Record<string, string>);
+    setInputs(inputs: Record<string, string>): void;
+    addInput(name: string, value: string): void;
+    addTools(tools: ToolExecutable[]): void;
+    addTool(tool: ToolExecutable): void;
+    hasTools(): boolean;
+    compile(variables: Record<string, string>, options?: {
+        warnUnused?: boolean;
+    }): string;
 }
 
 declare class Chat {
@@ -134,118 +246,9 @@ interface ChatItemToolCall {
     content: Array<ChatItemToolCallResult>;
 }
 
-type OllamaProviderConfig = {
-    url: string;
-    model: string;
-};
-type AnthropicProviderConfig = {
-    "api-key": string;
-    model: string;
-};
-type OpenAIProviderConfig = {
-    "api-key": string;
-    model: string;
-};
-interface BraveProviderConfig {
-    "api-key": string;
-    delay?: number;
-}
-type AIProviderConfig = {
-    openai?: Partial<OpenAIProviderConfig> & {
-        "api-key": string;
-    };
-    anthropic?: Partial<AnthropicProviderConfig> & {
-        "api-key": string;
-    };
-    ollama?: Partial<OllamaProviderConfig>;
-};
-type ToolProviderConfig = {
-    brave?: BraveProviderConfig;
-};
-type ProviderConfig = AIProviderConfig & ToolProviderConfig;
-type Job = AgentJob | BatchJob;
-interface AgentJob {
-    type: "agent";
-    tools?: string[];
-    variables?: Record<string, string>;
-    steps: Step[];
-}
-interface SkipOptions {
-    folder: string;
-    contains: string;
-}
-interface BatchJob {
-    type: "batch";
-    tools?: string[];
-    variables?: Record<string, string>;
-    batch: {
-        type: "files";
-        input: string;
-        "skip-condition"?: SkipOptions[];
-    }[];
-    steps: Step[];
-}
-type Step = ChatAction | ToolAction | ToolRespondAction | WriteToDiskAction | SaveVarAction;
-interface ChatAction {
-    action: "chat";
-    system?: string;
-    content: string;
-    replace?: Replace[];
-}
-interface ToolAction {
-    action: "tool-call";
-    toolCalls: ToolCall[];
-    throttle?: number;
-}
-interface ToolRespondAction {
-    action: "tool-respond";
-    toolCalls: ToolCall[];
-}
-interface WriteToDiskAction {
-    action: "write-to-disk";
-    output: string;
-}
-interface SaveVarAction {
-    action: "save-to-variables";
-    name: string;
-}
-type Replace = ReplaceManyFiles | ReplaceFile | ReplaceVariables;
-interface ReplaceVariables {
-    pattern: string;
-    source?: "variables";
-    name: string;
-}
-interface ReplaceFile {
-    pattern: string;
-    source: "file";
-    name: string;
-}
-interface ReplaceManyFiles {
-    pattern: string;
-    source: "many-files";
-    name: string | string[];
-}
-
-declare class Axle {
-    private provider;
-    private toolManager;
-    private stats;
-    private variables;
-    private recorder;
-    constructor(config: ProviderConfig);
-    use(toolConfig: ToolProviderConfig): Axle;
-    execute(job: Job): Promise<any>;
-    get logs(): RecorderEntry[];
-}
-
-interface Stats {
-    in: number;
-    out: number;
-}
-
 interface SerializedExecutionResponse {
     response: string;
     stats: Stats;
 }
 
-export { type AIProvider, Axle, type Job, type ProviderConfig, type SerializedExecutionResponse, type ToolManager, type ToolProviderConfig };
+export { type AIProvider, Axle, Instruct, type Job, type ProviderConfig, type SerializedExecutionResponse, type ToolProviderConfig };

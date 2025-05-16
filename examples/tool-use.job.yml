@@ -1,0 +1,19 @@
+using:
+  engine: openai
+
+jobs:
+  musician-research:
+    type: serial
+    tools:
+      - brave
+    steps:
+      - uses: chat
+        system: |
+          You are a researcher trying to find out about this musician or band.
+        message: |
+          You are trying to find out about this musical act: {{name}} .
+          Collate a short biography, their recent discograph, and their upcoming tour dates and locations based on results on the internet.
+        tools:
+          - braver
+      - uses: write-to-disk
+        output: ./output/{name}.txt
