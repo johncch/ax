@@ -1,5 +1,3 @@
-import { assertIsOllamaProviderConfig } from "../cli/configs/service.js";
-import { OllamaProviderConfig, OllamaUse } from "../cli/configs/types.js";
 import { Recorder } from "../recorder/recorder.js";
 import { Chat } from "./chat.js";
 import {
@@ -17,37 +15,13 @@ export class OllamaProvider implements AIProvider {
   model: string;
   recorder?: Recorder;
 
-  constructor({
-    config,
-    use,
-    recorder,
-  }: {
-    config: Partial<OllamaProviderConfig>;
-    use: OllamaUse;
-    recorder?: Recorder;
-  }) {
-    const c = {
-      model: config.model ?? use.model,
-      url: config.url ?? use.url ?? DEFAULT_OLLAMA_URL,
-    };
-
-    try {
-      assertIsOllamaProviderConfig(c);
-      this.url = c.url;
-      this.model = c.model;
-      this.recorder = recorder;
-    } catch (e) {
-      throw new Error(`Invalid Ollama configuration: ${e}`);
-    }
+  constructor(model: string, url?: string) {
+    this.url = url || DEFAULT_OLLAMA_URL;
+    this.model = model;
   }
 
   createChatCompletionRequest(chat: Chat): AIRequest {
-    return new OllamaChatCompletionRequest({
-      url: this.url,
-      model: this.model,
-      chat,
-      recorder: this.recorder,
-    });
+    return new OllamaChatCompletionRequest(this.url, this.model, chat);
   }
 }
 
@@ -55,26 +29,15 @@ class OllamaChatCompletionRequest implements AIRequest {
   chat: Chat;
   url: string;
   model: string;
-  recorder?: Recorder;
 
-  constructor({
-    url,
-    model,
-    chat,
-    recorder,
-  }: {
-    url: string;
-    model: string;
-    chat: Chat;
-    recorder?: Recorder;
-  }) {
+  constructor(url: string, model: string, chat: Chat) {
     this.url = url;
     this.model = model;
     this.chat = chat;
-    this.recorder = recorder;
   }
 
-  async execute(): Promise<AIResponse> {
+  async execute(runtime: { recorder?: Recorder }): Promise<AIResponse> {
+    const { recorder } = runtime;
     const requestBody = {
       model: this.model,
       messages: this.chat.toOpenAI().messages,
@@ -84,7 +47,7 @@ class OllamaChatCompletionRequest implements AIRequest {
       },
     };
 
-    this.recorder?.debug?.log(requestBody);
+    recorder?.debug?.log(requestBody);
 
     let result: AIResponse;
     try {
@@ -117,7 +80,7 @@ class OllamaChatCompletionRequest implements AIRequest {
         raw: data,
       };
     } catch (e) {
-      console.log(e);
+      recorder?.error?.log("Error fetching Ollama response:", e);
       result = {
         type: "error",
         error: {
@@ -132,7 +95,7 @@ class OllamaChatCompletionRequest implements AIRequest {
       };
     }
 
-    this.recorder?.debug?.log(result);
+    recorder?.debug?.log(result);
     return result;
   }
 }

@@ -1,8 +1,6 @@
 import OpenAI from "openai";
-import { assertIsOpenAIProviderConfig } from "../cli/configs/service.js";
-import { OpenAIProviderConfig, OpenAIUse } from "../cli/configs/types.js";
-import { Recorder } from "../recorder/recorder.js";
 
+import { Recorder } from "../recorder/recorder.js";
 import { Chat } from "./chat.js";
 import {
   AIProvider,
@@ -30,78 +28,41 @@ export class OpenAIProvider implements AIProvider {
   name = "OpenAI";
   client: OpenAI;
   model: string | undefined;
-  recorder?: Recorder;
 
-  constructor({
-    config,
-    use,
-    recorder,
-  }: {
-    config: Partial<OpenAIProviderConfig>;
-    use: OpenAIUse;
-    recorder?: Recorder;
-  }) {
-    const c = {
-      ["api-key"]: config["api-key"] || use["api-key"],
-      model: config.model || use.model || DEFAULT_MODEL,
-    };
-
-    try {
-      assertIsOpenAIProviderConfig(c);
-      this.model = c.model;
-      this.client = new OpenAI({ apiKey: c["api-key"] });
-      this.recorder = recorder;
-    } catch (e) {
-      throw new Error(`Invalid OpenAI configuration: ${e}`);
-    }
+  constructor(
+    private apiKey: string,
+    model?: string | undefined,
+  ) {
+    this.model = model || DEFAULT_MODEL;
+    this.client = new OpenAI({ apiKey: apiKey });
   }
 
   createChatCompletionRequest(chat: Chat) {
-    return new OpenAIChatCompletionRequest({
-      client: this.client,
-      model: this.model,
-      chat,
-      recorder: this.recorder,
-    });
+    return new OpenAIChatCompletionRequest(this, chat);
   }
 }
 
 class OpenAIChatCompletionRequest implements AIRequest {
-  chat: Chat;
-  openai: OpenAI;
-  model: string;
-  recorder?: Recorder;
+  constructor(
+    private provider: OpenAIProvider,
+    private chat: Chat,
+  ) {}
 
-  constructor({
-    client,
-    model,
-    chat,
-    recorder,
-  }: {
-    client: OpenAI;
-    model: string | undefined;
-    chat: Chat;
-    recorder?: Recorder;
-  }) {
-    this.openai = client;
-    this.model = model || "gpt-4o";
-    this.chat = chat;
-    this.recorder = recorder;
-  }
-
-  async execute(): Promise<AIResponse> {
+  async execute(runtime: { recorder?: Recorder }): Promise<AIResponse> {
+    const { recorder } = runtime;
+    const { client, model } = this.provider;
     const request = {
-      model: this.model,
+      model: model,
       ...this.chat.toOpenAI(),
     };
-    this.recorder?.debug?.log(request);
+    recorder?.debug?.log(request);
 
     let result: AIResponse;
     try {
-      const completion = await this.openai.chat.completions.create(request);
+      const completion = await client.chat.completions.create(request);
       result = translate(completion);
     } catch (e) {
-      console.error(e);
+      recorder?.error?.log(e);
       result = {
         type: "error",
         error: {
@@ -115,7 +76,7 @@ class OpenAIChatCompletionRequest implements AIRequest {
         raw: e,
       };
     }
-    this.recorder?.debug?.log(result);
+    recorder?.debug?.log(result);
     return result;
   }
 }

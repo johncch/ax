@@ -1,5 +1,5 @@
-import { describe, test, expect } from "@jest/globals";
-import { replaceFilePattern, pathToComponents } from "./file.js";
+import { describe, expect, test } from "@jest/globals";
+import { pathToComponents, replaceFilePattern } from "./file.js";
 
 describe("file module", () => {
   describe("path to components", () => {
@@ -7,11 +7,11 @@ describe("file module", () => {
       const input = "input/file.json";
       const output = pathToComponents(input);
       expect(output).toEqual({
-        absolutePath: input,
-        directoryPath: "input/",
-        fullFileName: "file.json",
-        fileNameStem: "file",
-        fileExtension: ".json",
+        abs: input,
+        dir: "input/",
+        name: "file.json",
+        stem: "file",
+        ext: ".json",
       });
     });
   });

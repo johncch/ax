@@ -1,21 +1,69 @@
+import { serializeError } from "serialize-error";
 import {
   LogLevel,
   RecorderEntry,
-  RecorderInput,
+  RecorderLevelFunctions,
   RecorderWriter,
+  VisualLevel,
 } from "./types.js";
 
 export class Recorder {
   instanceId = crypto.randomUUID();
-  level: LogLevel = LogLevel.Info;
+  private currentLevel: LogLevel = LogLevel.Info;
 
   private logs: RecorderEntry[] = [];
+  private writers: RecorderWriter[] = [];
+
+  private _debug: RecorderLevelFunctions | null;
+  private _info: RecorderLevelFunctions | null;
+  private _warn: RecorderLevelFunctions | null;
+  private _error: RecorderLevelFunctions;
+
+  constructor() {
+    this.buildMethods();
+  }
+
+  buildMethods() {
+    this._debug =
+      LogLevel.Debug >= this.currentLevel
+        ? this.createLoggingFunction(LogLevel.Debug)
+        : null;
+    this._info =
+      LogLevel.Info >= this.currentLevel
+        ? this.createLoggingFunction(LogLevel.Info)
+        : null;
+    this._warn =
+      LogLevel.Warn >= this.currentLevel
+        ? this.createLoggingFunction(LogLevel.Warn)
+        : null;
+    this._error = this.createLoggingFunction(LogLevel.Error);
+  }
+
+  set level(level: LogLevel) {
+    this.currentLevel = level;
+    this.buildMethods();
+  }
+
+  get level() {
+    return this.currentLevel;
+  }
+
+  get info() {
+    return this._info;
+  }
+  get warn() {
+    return this._warn;
+  }
+  get error() {
+    return this._error;
+  }
+  get debug() {
+    return this._debug;
+  }
 
   /*
     Pub sub methods for writers
   */
-
-  private writers: RecorderWriter[] = [];
 
   subscribe(writer: RecorderWriter): void {
     if (!this.writers.includes(writer)) {
@@ -42,27 +90,35 @@ export class Recorder {
    Log Methods
   */
 
-  private logFunction(level: LogLevel, obj: string | RecorderInput) {
-    const data = typeof obj === "string" ? { message: obj } : obj;
+  private logFunction(
+    level: LogLevel,
+    kind: VisualLevel,
+    ...input: (string | Error | Record<string, unknown>)[]
+  ) {
+    let payload = input.map((item) => {
+      if (typeof item === "string") {
+        return { message: item };
+      } else if (item instanceof Error) {
+        return serializeError(item);
+      } else {
+        return item;
+      }
+    });
+
     this.publish({
       level,
       time: Date.now(),
-      ...data,
+      kind,
+      payload,
     });
   }
 
-  get info() {
+  private createLoggingFunction(level: LogLevel) {
     return {
-      log: this.logFunction.bind(this, LogLevel.Info),
-    };
-  }
-
-  get debug() {
-    if (this.level > LogLevel.Debug) {
-      return null;
-    }
-    return {
-      log: this.logFunction.bind(this, LogLevel.Debug),
+      log: this.logFunction.bind(this, level, "body"),
+      heading: {
+        log: this.logFunction.bind(this, level, "heading"),
+      },
     };
   }
 
@@ -71,5 +127,17 @@ export class Recorder {
   */
   getLogs(level: LogLevel = LogLevel.Info) {
     return this.logs.filter((entry) => entry.level >= level);
+  }
+
+  /**
+   * Ensures all writers have completed their pending operations
+   * Call this before exiting the process to ensure logs are written
+   */
+  async shutdown(): Promise<void> {
+    for (const writer of this.writers) {
+      if (typeof writer.flush === "function") {
+        await writer.flush();
+      }
+    }
   }
 }

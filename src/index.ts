@@ -6,7 +6,7 @@ export { Instruct } from "./core/Instruct.js";
 export type { AIProvider } from "./ai/types.js";
 export type {
   Job,
-  ProviderConfig,
+  ServiceConfig as ProviderConfig,
   ToolProviderConfig,
 } from "./cli/configs/types.js";
 export type { SerializedExecutionResponse } from "./workflows/types.js";

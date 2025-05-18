@@ -1,15 +1,9 @@
-import {
-  AnthropicProviderConfig,
-  OllamaProviderConfig,
-  OpenAIProviderConfig,
-  ProviderConfig,
-  ValidationError,
-} from "./types.js";
+import { ServiceConfig, ValidationError, BraveProviderConfig } from "./types.js";
 
-export function isProviderConfig(
+export function isServiceConfig(
   config: any,
   error?: ValidationError,
-): config is ProviderConfig {
+): config is ServiceConfig {
   // Must be a non-null object.
   if (typeof config !== "object" || config === null) {
     error && (error.value = "Config: must be a non-null object");
@@ -88,60 +82,12 @@ export function isProviderConfig(
       return false;
     }
 
-    // "delay" is optional but must be a number if provided.
-    if ("delay" in brave && typeof brave.delay !== "number") {
-      error && (error.value = "Config: brave.delay must be a number");
+    // "rateLimit" is optional but must be a number if provided.
+    if ("rateLimit" in brave && typeof brave.rateLimit !== "number") {
+      error && (error.value = "Config: brave.rateLimit must be a number");
       return false;
     }
   }
 
   return true;
-}
-
-export function assertIsOpenAIProviderConfig(
-  obj: any,
-): asserts obj is OpenAIProviderConfig {
-  if (!obj || typeof obj !== "object") {
-    throw new Error("Not an object");
-  }
-
-  if (!("api-key" in obj) || typeof obj["api-key"] !== "string") {
-    throw new Error("Missing or invalid 'api-key'");
-  }
-
-  if (!("model" in obj) || typeof obj.model !== "string") {
-    throw new Error("Missing or invalid 'model'");
-  }
-}
-
-export function assertIsAnthropicProviderConfig(
-  obj: any,
-): asserts obj is AnthropicProviderConfig {
-  if (!obj || typeof obj !== "object") {
-    throw new Error("Not an object");
-  }
-
-  if (!("api-key" in obj) || typeof obj["api-key"] !== "string") {
-    throw new Error("Missing or invalid 'api-key'");
-  }
-
-  if (!("model" in obj) || typeof obj.model !== "string") {
-    throw new Error("Missing or invalid 'model'");
-  }
-}
-
-export function assertIsOllamaProviderConfig(
-  obj: any,
-): asserts obj is OllamaProviderConfig {
-  if (!obj || typeof obj !== "object") {
-    throw new Error("Not an object");
-  }
-
-  if (!("url" in obj) || typeof obj.url !== "string") {
-    throw new Error("Missing or invalid 'url'");
-  }
-
-  if (!("model" in obj) || typeof obj.model !== "string") {
-    throw new Error("Missing or invalid 'model'");
-  }
 }

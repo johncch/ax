@@ -1,3 +1,5 @@
+export type PlainObject = Record<string, unknown>;
+
 export type ProgramOptions = {
   dryRun?: boolean;
   config?: string;

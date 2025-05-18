@@ -1,9 +1,9 @@
 import chalk from "chalk";
 import readline from "node:readline";
+import { PlainObject } from "../types.js";
 import {
   LogLevel,
   RecorderEntry,
-  RecorderInput,
   RecorderTaskInput,
   RecorderWriter,
   TaskStatus,
@@ -84,14 +84,11 @@ export class ConsoleWriter implements RecorderWriter {
 
     // Render entries
     for (const entry of this.entries) {
-      if (!isTask(entry)) {
-        const { level, time, kind, message: msg = "", ...data } = entry;
-        const message = msg as string;
-        if (kind === "heading") {
-          heading(level, message, data, { truncate: this.truncate });
-        } else {
-          body(level, message, data, { truncate: this.truncate });
-        }
+      const { level, time, kind, payload } = entry;
+      if (kind === "heading") {
+        heading(level, payload, { truncate: this.truncate });
+      } else {
+        body(level, payload, { truncate: this.truncate });
       }
     }
     this.entries = [];
@@ -111,8 +108,10 @@ export class ConsoleWriter implements RecorderWriter {
   }
 
   handleEvent(event: RecorderEntry): void {
-    if (isTask(event)) {
-      const { id, message, status } = event;
+    const { level, time, payload } = event;
+    if (payload.length > 0 && isTask(payload[0])) {
+      const taskPayload = payload[0] as RecorderTaskInput;
+      const { id, message, status } = taskPayload;
       if (status === TaskStatus.Running) {
         this.tasks.set(id, {
           id,
@@ -148,53 +147,128 @@ export class ConsoleWriter implements RecorderWriter {
   }
 }
 
-function isTask(value: RecorderInput): value is RecorderTaskInput {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    (value as RecorderTaskInput).type === "task"
-  );
+function isTask(value: unknown): value is RecorderTaskInput {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  if (v.type !== "task") return false;
+  if (typeof v.id !== "string" || typeof v.message !== "string") return false;
+
+  switch (v.status) {
+    case TaskStatus.Running:
+    case TaskStatus.Success:
+    case TaskStatus.PartialSuccess:
+    case TaskStatus.Fail:
+      return true;
+    default:
+      return false;
+  }
 }
 
 function heading(
   level: LogLevel,
-  message: string,
-  data: Record<string, any>,
+  payload: Record<string, any>[],
   options: { truncate: number },
 ) {
-  const l = level >= LogLevel.Info ? chalk.blue : chalk.gray;
-  const b = level >= LogLevel.Info ? chalk.whiteBright.bold : chalk.white;
+  let l, b;
+  if (level === LogLevel.Error) {
+    l = chalk.red;
+    b = chalk.redBright.bold;
+  } else if (level === LogLevel.Warn) {
+    l = chalk.yellow;
+    b = chalk.yellowBright.bold;
+  } else if (level >= LogLevel.Info) {
+    l = chalk.blue;
+    b = chalk.whiteBright.bold;
+  } else {
+    l = chalk.gray;
+    b = chalk.white;
+  }
+  const { message, data } = toMsgData(payload);
   console.log(`${l("==>")} ${b(message)}`);
   values(level, data, options);
 }
 
 function body(
   level: LogLevel,
-  message: string,
-  data: Record<string, any>,
+  payload: Record<string, any>[],
   options: { truncate: number },
 ) {
-  const b = level >= LogLevel.Info ? chalk.white : chalk.gray;
+  let b;
+  if (level === LogLevel.Error) {
+    b = chalk.red;
+  } else if (level === LogLevel.Warn) {
+    b = chalk.yellow;
+  } else if (level >= LogLevel.Info) {
+    b = chalk.white;
+  } else {
+    b = chalk.gray;
+  }
+  const { message, data } = toMsgData(payload);
   if (message) console.log(b(message));
   values(level, data, options);
 }
 
+const deliminator = "    ";
+
 function values(
   level: LogLevel,
-  data: Record<string, any>,
+  data: PlainObject[],
   options: { truncate: number },
 ) {
-  const b = level >= LogLevel.Info ? chalk.white : chalk.gray;
-  for (const [key, value] of Object.entries(data)) {
-    const v =
-      options.truncate > 0
-        ? JSON.stringify(value, (key, value) => {
-            if (typeof value === "string" && value.length > options.truncate) {
-              return value.slice(0, options.truncate) + "<...>";
-            }
-            return value;
-          })
-        : JSON.stringify(value);
-    console.log(b(`\t${key}: ${v}`));
+  let b;
+  if (level === LogLevel.Error) {
+    b = chalk.red;
+    options.truncate = 0;
+  } else if (level == LogLevel.Warn) {
+    b = chalk.yellow;
+  } else if (level >= LogLevel.Info) {
+    b = chalk.white;
+  } else {
+    b = chalk.gray;
   }
+  data.forEach((d) => {
+    if (typeof d === "string") {
+      console.log(b(`${deliminator}${d}`));
+      return;
+    }
+    for (const [key, value] of Object.entries(d)) {
+      let v = JSON.stringify(value, truncator(options.truncate), "\t");
+      const printable = `${key}: ${v}`
+        .split("\n")
+        .map((line) => deliminator + line)
+        .join("\n");
+      console.log(b(printable));
+    }
+  });
+}
+
+function toMsgData(arr: Record<string, unknown>[]): {
+  message: string;
+  data: Record<string, unknown>[];
+} {
+  const [first, ...rest] = arr;
+  let message = "";
+  let data = rest;
+
+  if (first) {
+    let { message: m, ...rest } = first;
+    message = m && typeof m === "string" ? m : "";
+
+    if (Object.keys(rest).length > 0) {
+      data = [rest, ...data];
+    }
+  }
+  return { message, data };
+}
+
+function truncator(truncate: number) {
+  if (truncate === 0) {
+    return null;
+  }
+  return (key, value) => {
+    if (typeof value === "string" && value.length > truncate) {
+      return value.slice(0, truncate) + "<...>";
+    }
+    return value;
+  };
 }

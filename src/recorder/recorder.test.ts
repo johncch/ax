@@ -7,12 +7,10 @@ import {
   test,
 } from "@jest/globals";
 import { Recorder } from "./recorder.js";
-import {
-  LogLevel,
-  RecorderEntry,
-  RecorderWriter,
-  TaskStatus,
-} from "./types.js";
+import { LogLevel, RecorderEntry, RecorderWriter, TaskStatus } from "./types.js";
+
+// Helper type for test mocks
+type HandleEventFn = (event: RecorderEntry) => void;
 
 describe("Recorder", () => {
   let recorder: Recorder;
@@ -22,12 +20,10 @@ describe("Recorder", () => {
     jest
       .spyOn(global.crypto, "randomUUID")
       .mockReturnValue("00000000-0000-0000-0000-000000000000");
-    
+
     // Mock Date.now() for consistent timestamps
-    jest
-      .spyOn(Date, "now")
-      .mockReturnValue(1000000000000);
-      
+    jest.spyOn(Date, "now").mockReturnValue(1000000000000);
+
     recorder = new Recorder();
   });
 
@@ -46,42 +42,43 @@ describe("Recorder", () => {
   describe("writer subscription", () => {
     test("subscribes writers", () => {
       const mockWriter: RecorderWriter = {
-        handleEvent: jest.fn(),
+        handleEvent: jest.fn() as unknown as HandleEventFn,
       };
 
       recorder.subscribe(mockWriter);
-      recorder.info.log("Test message");
+      recorder.info?.log("Test message");
 
       expect(mockWriter.handleEvent).toHaveBeenCalledTimes(1);
       expect(mockWriter.handleEvent).toHaveBeenCalledWith(
         expect.objectContaining({
           level: LogLevel.Info,
-          message: "Test message",
+          kind: "body",
           time: 1000000000000,
+          payload: [{ message: "Test message" }],
         }),
       );
     });
 
     test("unsubscribes writers", () => {
       const mockWriter: RecorderWriter = {
-        handleEvent: jest.fn(),
+        handleEvent: jest.fn() as unknown as HandleEventFn,
       };
 
       recorder.subscribe(mockWriter);
       recorder.unsubscribe(mockWriter);
-      recorder.info.log("Test message");
+      recorder.info?.log("Test message");
 
       expect(mockWriter.handleEvent).not.toHaveBeenCalled();
     });
 
     test("doesn't duplicate writer subscriptions", () => {
       const mockWriter: RecorderWriter = {
-        handleEvent: jest.fn(),
+        handleEvent: jest.fn() as unknown as HandleEventFn,
       };
 
       recorder.subscribe(mockWriter);
       recorder.subscribe(mockWriter); // Subscribe the same writer again
-      recorder.info.log("Test message");
+      recorder.info?.log("Test message");
 
       expect(mockWriter.handleEvent).toHaveBeenCalledTimes(1);
     });
@@ -89,11 +86,11 @@ describe("Recorder", () => {
 
   describe("task logging", () => {
     test("logs task with status running", () => {
-      recorder.info.log({
+      recorder.info?.log({
         type: "task",
         status: TaskStatus.Running,
         id: "task1",
-        message: "Starting task"
+        message: "Starting task",
       });
 
       const logs = recorder.getLogs();
@@ -101,76 +98,83 @@ describe("Recorder", () => {
       expect(logs[0]).toEqual({
         level: LogLevel.Info,
         time: 1000000000000,
-        type: "task",
-        status: TaskStatus.Running,
-        id: "task1",
-        message: "Starting task"
+        kind: "body",
+        payload: [{
+          type: "task",
+          status: TaskStatus.Running,
+          id: "task1",
+          message: "Starting task",
+        }],
       });
     });
 
     test("logs task with status success", () => {
-      recorder.info.log({
+      recorder.info?.log({
         type: "task",
         status: TaskStatus.Success,
         id: "task1",
-        message: "Task completed"
+        message: "Task completed",
       });
 
       const logs = recorder.getLogs();
       expect(logs[0]).toMatchObject({
         level: LogLevel.Info,
-        type: "task",
-        status: TaskStatus.Success,
-        id: "task1",
-        message: "Task completed"
+        kind: "body",
+        payload: [expect.objectContaining({
+          type: "task",
+          status: TaskStatus.Success,
+          id: "task1",
+          message: "Task completed",
+        })],
       });
     });
 
     test("logs task with status fail", () => {
-      recorder.info.log({
+      recorder.info?.log({
         type: "task",
         status: TaskStatus.Fail,
         id: "task1",
-        message: "Task failed"
+        message: "Task failed",
       });
 
       const logs = recorder.getLogs();
       expect(logs[0]).toMatchObject({
         level: LogLevel.Info,
-        type: "task",
-        status: TaskStatus.Fail,
-        id: "task1",
-        message: "Task failed"
+        kind: "body",
+        payload: [expect.objectContaining({
+          type: "task",
+          status: TaskStatus.Fail,
+          id: "task1",
+          message: "Task failed",
+        })],
       });
     });
   });
 
   describe("logging", () => {
     test("logs simple messages", () => {
-      recorder.info.log("Info message");
+      recorder.info?.log("Info message");
 
       const logs = recorder.getLogs();
       expect(logs).toHaveLength(1);
       expect(logs[0]).toEqual({
         level: LogLevel.Info,
         time: 1000000000000,
-        message: "Info message",
+        kind: "body",
+        payload: [{ message: "Info message" }],
       });
     });
 
     test("logs heading messages", () => {
-      recorder.info.log({
-        message: "Info header",
-        kind: "heading"
-      });
+      recorder.info?.heading.log("Info header");
 
       const logs = recorder.getLogs();
       expect(logs).toHaveLength(1);
       expect(logs[0]).toEqual({
         level: LogLevel.Info,
         time: 1000000000000,
-        message: "Info header",
-        kind: "heading"
+        kind: "heading",
+        payload: [{ message: "Info header" }],
       });
     });
 
@@ -196,23 +200,27 @@ describe("Recorder", () => {
         expect(logs).toHaveLength(1);
         expect(logs[0]).toMatchObject({
           level: LogLevel.Debug,
-          message: "Debug message",
+          kind: "body",
+          payload: [{ message: "Debug message" }],
         });
       }
     });
 
     test("logs objects with additional properties", () => {
-      recorder.info.log({
+      recorder.info?.log({
         message: "Custom message",
-        customProp: "custom value"
+        customProp: "custom value",
       });
 
       const logs = recorder.getLogs();
       expect(logs[0]).toEqual({
         level: LogLevel.Info,
         time: 1000000000000,
-        message: "Custom message",
-        customProp: "custom value"
+        kind: "body",
+        payload: [{
+          message: "Custom message",
+          customProp: "custom value",
+        }],
       });
     });
 
@@ -226,7 +234,7 @@ describe("Recorder", () => {
       // Add logs at different levels
       if (recorder.debug) {
         recorder.debug.log("Debug message");
-        recorder.info.log("Info message");
+        recorder.info?.log("Info message");
 
         // We should have one info log when filtered to info level
         expect(recorder.getLogs(LogLevel.Info)).toHaveLength(1);
@@ -247,15 +255,15 @@ describe("Recorder", () => {
   describe("event publishing", () => {
     test("publishes events to multiple writers", () => {
       const mockWriter1: RecorderWriter = {
-        handleEvent: jest.fn(),
+        handleEvent: jest.fn() as unknown as HandleEventFn,
       };
       const mockWriter2: RecorderWriter = {
-        handleEvent: jest.fn(),
+        handleEvent: jest.fn() as unknown as HandleEventFn,
       };
 
       recorder.subscribe(mockWriter1);
       recorder.subscribe(mockWriter2);
-      recorder.info.log("Test message");
+      recorder.info?.log("Test message");
 
       expect(mockWriter1.handleEvent).toHaveBeenCalledTimes(1);
       expect(mockWriter2.handleEvent).toHaveBeenCalledTimes(1);

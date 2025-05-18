@@ -56,7 +56,7 @@ export async function executeChatAction(params: {
   if (instruct.system) {
     chat.addSystem(instruct.system);
   }
-  chat.addUser(instruct.compile(variables, options));
+  chat.addUser(instruct.compile(variables, { recorder, options }));
   if (instruct.hasTools()) {
     const toolSchemas = getToolSchemas(instruct.tools);
     chat.setToolSchemas(toolSchemas);
@@ -71,7 +71,7 @@ export async function executeChatAction(params: {
   let continueProcessing = true;
   while (continueProcessing) {
     const request = provider.createChatCompletionRequest(chat);
-    const response = await request.execute();
+    const response = await request.execute({ recorder });
 
     stats.in += response.usage.in;
     stats.out += response.usage.out;

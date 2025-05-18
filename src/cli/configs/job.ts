@@ -1,16 +1,13 @@
 import {
-  AnthropicUse,
+  AIProviderUse,
   BatchJob,
   ChatStep,
   Job,
   JobConfig,
-  OllamaUse,
-  OpenAIUse,
   Replace,
   SerialJob,
   SkipOptions,
   Step,
-  Using,
   ValidationError,
   WriteToDiskStep,
 } from "./types.js";
@@ -45,109 +42,62 @@ export function isJobConfig(
   return true;
 }
 
-export function isUsing(obj: any, errVal?: ValidationError): obj is Using {
+export function isUsing(
+  obj: any,
+  errVal?: ValidationError,
+): obj is AIProviderUse {
   if (!obj || typeof obj !== "object") {
     if (errVal) errVal.value = "Not an object";
     return false;
   }
 
-  if (obj.engine === "openai") {
-    return isOpenAIUse(obj, errVal);
-  } else if (obj.engine === "anthropic") {
-    return isAnthropicUse(obj, errVal);
-  } else if (obj.engine === "ollama") {
-    return isOllamaUse(obj, errVal);
-  } else {
+  if (typeof obj.engine !== "string") {
+    if (errVal) errVal.value = "Missing or invalid 'engine' property";
+    return false;
+  }
+
+  // The engine property should be a valid key for AIProviderConfig
+  const validProviders = ["openai", "anthropic", "ollama"];
+  if (!validProviders.includes(obj.engine)) {
     if (errVal)
       errVal.value =
-        "Invalid engine type. Must be 'openai', 'anthropic', or 'ollama'";
-    return false;
-  }
-}
-
-export function isOpenAIUse(
-  obj: any,
-  errVal?: ValidationError,
-): obj is OpenAIUse {
-  if (!obj || typeof obj !== "object") {
-    if (errVal) errVal.value = "Not an object";
+        "Invalid provider type. Must be 'openai', 'anthropic', or 'ollama'";
     return false;
   }
 
-  if (obj.engine !== "openai") {
-    if (errVal) errVal.value = "Engine must be 'openai'";
-    return false;
-  }
-
-  // Optional properties
-  if (obj["api-key"] !== undefined && typeof obj["api-key"] !== "string") {
-    if (errVal) errVal.value = "Property 'api-key' must be a string";
-    return false;
-  }
-
-  if (obj.model !== undefined && typeof obj.model !== "string") {
-    if (errVal) errVal.value = "Property 'model' must be a string";
-    return false;
-  }
-
-  return true;
-}
-
-export function isAnthropicUse(
-  obj: any,
-  errVal?: ValidationError,
-): obj is AnthropicUse {
-  if (!obj || typeof obj !== "object") {
-    if (errVal) errVal.value = "Not an object";
-    return false;
-  }
-
-  if (obj.engine !== "anthropic") {
-    if (errVal) errVal.value = "Engine must be 'anthropic'";
-    return false;
-  }
-
-  // Optional properties
-  if (obj["api-key"] !== undefined && typeof obj["api-key"] !== "string") {
-    if (errVal) errVal.value = "Property 'api-key' must be a string";
-    return false;
-  }
-
-  if (obj.model !== undefined && typeof obj.model !== "string") {
-    if (errVal) errVal.value = "Property 'model' must be a string";
-    return false;
+  // Validate provider-specific optional properties based on the 'engine' property
+  switch (obj.engine) {
+    case "ollama":
+      // Optional model property
+      if ("model" in obj && typeof obj.model !== "string") {
+        if (errVal) errVal.value = "Property 'model' must be a string";
+        return false;
+      }
+      // Optional url property
+      if ("url" in obj && typeof obj.url !== "string") {
+        if (errVal) errVal.value = "Property 'url' must be a string";
+        return false;
+      }
+      break;
+    case "anthropic":
+    case "openai":
+      // Optional api-key property
+      if ("api-key" in obj && typeof obj["api-key"] !== "string") {
+        if (errVal) errVal.value = "Property 'api-key' must be a string";
+        return false;
+      }
+      // Optional model property
+      if ("model" in obj && typeof obj.model !== "string") {
+        if (errVal) errVal.value = "Property 'model' must be a string";
+        return false;
+      }
+      break;
   }
 
   return true;
 }
 
-export function isOllamaUse(
-  obj: any,
-  errVal?: ValidationError,
-): obj is OllamaUse {
-  if (!obj || typeof obj !== "object") {
-    if (errVal) errVal.value = "Not an object";
-    return false;
-  }
 
-  if (obj.engine !== "ollama") {
-    if (errVal) errVal.value = "Engine must be 'ollama'";
-    return false;
-  }
-
-  // Optional properties
-  if (obj.url !== undefined && typeof obj.url !== "string") {
-    if (errVal) errVal.value = "Property 'url' must be a string";
-    return false;
-  }
-
-  if (obj.model !== undefined && typeof obj.model !== "string") {
-    if (errVal) errVal.value = "Property 'model' must be a string";
-    return false;
-  }
-
-  return true;
-}
 
 export function isJob(obj: any, errVal?: ValidationError): obj is Job {
   if (!obj || typeof obj !== "object") {

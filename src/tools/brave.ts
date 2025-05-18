@@ -28,14 +28,14 @@ class BraveSearchTool implements ToolExecutable {
 
   constructor(config?: BraveProviderConfig) {
     if (config) {
-      this.apiKey = config["api-key"];
-      this.throttle = config.delay ?? undefined;
+      this.setConfig(config);
     }
   }
 
   setConfig(config: BraveProviderConfig) {
+    const { rateLimit } = config;
     this.apiKey = config["api-key"];
-    this.throttle = config.delay ?? undefined;
+    this.throttle = rateLimit ? 1100 / rateLimit : undefined;
   }
 
   async execute(
@@ -44,10 +44,7 @@ class BraveSearchTool implements ToolExecutable {
   ) {
     const { searchTerm } = params;
     const { recorder } = context;
-    recorder?.debug?.log({
-      kind: "heading",
-      message: `Brave: searching for ${searchTerm}`,
-    });
+    recorder?.debug?.heading.log(`Brave: searching for ${searchTerm}`);
 
     if (this.throttle) {
       while (Date.now() - this.lastExecTime < this.throttle) {
@@ -73,13 +70,15 @@ class BraveSearchTool implements ToolExecutable {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response}`);
+        throw new Error(
+          `[Brave] HTTP error ${response.status}: ${response.statusText}`,
+        );
       }
 
       const data = await response.json();
       return data;
     } catch (error) {
-      console.error("Error fetching search results:", error);
+      recorder?.error.log("[Brave] Error fetching search results:", error);
       throw error;
     }
   }

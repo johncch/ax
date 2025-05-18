@@ -1,45 +1,38 @@
-import { ProviderConfig, Using } from "../cli/configs/types.js";
-import { Recorder } from "../recorder/recorder.js";
-import { ProgramOptions } from "../types.js";
+import { AxleError } from "../errors/AxleError.js";
 import { AnthropicProvider } from "./anthropic.js";
 import { OllamaProvider } from "./ollama.js";
 import { OpenAIProvider } from "./openai.js";
-import { AIProvider } from "./types.js";
+import { AIProviderConfig, OllamaProviderConfig } from "./types.js";
 
-export function getProvider({
-  useConfig,
-  config,
-  options,
-  recorder,
-}: {
-  useConfig: Using;
-  config: ProviderConfig;
-  options?: ProgramOptions;
-  recorder?: Recorder;
-}): AIProvider {
-  if (useConfig.engine == "openai") {
-    return new OpenAIProvider({
-      config: config.openai,
-      use: useConfig,
-      recorder,
-    });
-  }
-  if (useConfig.engine == "anthropic") {
-    return new AnthropicProvider({
-      config: config.anthropic,
-      use: useConfig,
-      recorder,
-    });
-  }
-  if (useConfig.engine == "ollama") {
-    return new OllamaProvider({
-      config: config.ollama,
-      use: useConfig,
-      recorder,
-    });
-  }
+type ProviderMap = {
+  ollama: OllamaProvider;
+  anthropic: AnthropicProvider;
+  openai: OpenAIProvider;
+};
 
-  throw new Error(
-    "AI Provider is invalid or not supported. Please check your job file.",
-  );
+export function getProvider<K extends keyof AIProviderConfig>(
+  provider: K,
+  config: AIProviderConfig[K],
+): ProviderMap[K] {
+  switch (provider) {
+    case "openai":
+      return new OpenAIProvider(
+        config["api-key"],
+        config.model,
+      ) as ProviderMap[K];
+    case "anthropic":
+      return new AnthropicProvider(
+        config["api-key"],
+        config.model,
+      ) as ProviderMap[K];
+    case "ollama": {
+      const ollamaConfig = config as OllamaProviderConfig;
+      return new OllamaProvider(
+        ollamaConfig.model,
+        ollamaConfig.url,
+      ) as ProviderMap[K];
+    }
+    default:
+      throw new AxleError("The provider is unsupported");
+  }
 }

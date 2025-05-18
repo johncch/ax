@@ -1,6 +1,4 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { assertIsAnthropicProviderConfig } from "../cli/configs/service.js";
-import { AnthropicProviderConfig, AnthropicUse } from "../cli/configs/types.js";
 import { Recorder } from "../recorder/recorder.js";
 
 import { Chat } from "./chat.js";
@@ -25,78 +23,38 @@ export class AnthropicProvider implements AIProvider {
   name = "Anthropic";
   client: Anthropic;
   model: string;
-  recorder?: Recorder;
 
-  constructor({
-    config,
-    use,
-    recorder,
-  }: {
-    config: Partial<AnthropicProviderConfig>;
-    use: AnthropicUse;
-    recorder?: Recorder;
-  }) {
-    const c = {
-      ["api-key"]: config["api-key"] || use["api-key"],
-      model: config.model || use.model || DEFAULT_MODEL,
-    };
-
-    try {
-      assertIsAnthropicProviderConfig(c);
-      this.model = c.model;
-      this.client = new Anthropic({
-        apiKey: c["api-key"],
-      });
-      this.recorder = recorder;
-    } catch (e) {
-      throw new Error(`Invalid Anthropic configuration: ${e}`);
-    }
+  constructor(apiKey: string, model?: string) {
+    this.model = model ?? DEFAULT_MODEL;
+    this.client = new Anthropic({
+      apiKey: apiKey,
+    });
   }
 
   createChatCompletionRequest(chat: Chat): AIRequest {
-    return new AnthropicChatRequest({
-      client: this.client,
-      model: this.model,
-      chat,
-      recorder: this.recorder,
-    });
+    return new AnthropicChatRequest(this, chat);
   }
 }
 
 class AnthropicChatRequest implements AIRequest {
-  chat: Chat;
-  client: Anthropic;
-  model: string;
-  recorder?: Recorder;
+  constructor(
+    private provider: AnthropicProvider,
+    private chat: Chat,
+  ) {}
 
-  constructor({
-    client,
-    model,
-    chat,
-    recorder,
-  }: {
-    client: Anthropic;
-    model: string;
-    chat: Chat;
-    recorder?: Recorder;
-  }) {
-    this.client = client;
-    this.model = model;
-    this.chat = chat;
-    this.recorder = recorder;
-  }
-
-  async execute(): Promise<any> {
+  async execute(runtime: { recorder?: Recorder }): Promise<any> {
+    const { recorder } = runtime;
+    const { client, model } = this.provider;
     const request = {
-      model: this.model,
+      model: model,
       ...this.chat.toAnthropic(),
-      max_tokens: getMaxTokens(this.model),
+      max_tokens: getMaxTokens(model),
     };
-    this.recorder?.debug?.log(request);
+    recorder?.debug?.log(request);
 
     let result: AIResponse;
     try {
-      const completion = await this.client.messages.create(request);
+      const completion = await client.messages.create(request);
       result = translate(completion);
     } catch (e) {
       result = {
@@ -105,15 +63,12 @@ class AnthropicChatRequest implements AIRequest {
           type: e.error.error.type ?? "Undetermined",
           message: e.error.error.message ?? "Unexpected error from Anthropic",
         },
-        usage: {
-          in: 0,
-          out: 0,
-        },
+        usage: { in: 0, out: 0 },
         raw: e,
       };
     }
 
-    this.recorder?.debug?.log(result);
+    recorder?.debug?.log(result);
     return result;
   }
 }

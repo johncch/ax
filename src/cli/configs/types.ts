@@ -1,61 +1,38 @@
+import {
+  AIProviderConfig,
+  AnthropicProviderConfig,
+  OllamaProviderConfig,
+  OpenAIProviderConfig,
+} from "../../ai/types.js";
+
 export interface ValidationError {
   value: string;
 }
 
 /* Provider Types */
 
-export type OllamaProviderConfig = {
-  url: string;
-  model: string;
-};
-
-export type AnthropicProviderConfig = {
-  "api-key": string;
-  model: string;
-};
-
-export type OpenAIProviderConfig = {
-  "api-key": string;
-  model: string;
-};
-
 export interface BraveProviderConfig {
   "api-key": string;
-  delay?: number;
+  rateLimit?: number; // request per second
 }
-
-export type AIProviderConfig = {
-  openai?: Partial<OpenAIProviderConfig> & { "api-key": string };
-  anthropic?: Partial<AnthropicProviderConfig> & { "api-key": string };
-  ollama?: Partial<OllamaProviderConfig>;
-};
 
 export type ToolProviderConfig = {
   brave?: BraveProviderConfig;
 };
 
-export type ProviderConfig = AIProviderConfig & ToolProviderConfig;
+export type ServiceConfig = Partial<AIProviderConfig> & ToolProviderConfig;
 
 /* Job Types */
 
 export interface JobConfig {
-  using: Using;
+  using: AIProviderUse;
   jobs: Record<string, Job>;
 }
 
-export type Using = OpenAIUse | AnthropicUse | OllamaUse;
-
-export type OpenAIUse = Partial<OpenAIProviderConfig> & {
-  engine: "openai";
-};
-
-export type AnthropicUse = Partial<AnthropicProviderConfig> & {
-  engine: "anthropic";
-};
-
-export type OllamaUse = Partial<OllamaProviderConfig> & {
-  engine: "ollama";
-};
+export type AIProviderUse =
+  | ({ engine: "ollama" } & Partial<OllamaProviderConfig>)
+  | ({ engine: "anthropic" } & Partial<AnthropicProviderConfig>)
+  | ({ engine: "openai" } & Partial<OpenAIProviderConfig>);
 
 export type Job = SerialJob | BatchJob;
 

@@ -10,7 +10,7 @@ export class FileRunPlanner implements Planner {
   constructor(
     public source: string,
     public bind: string,
-    public skipConditions: SkipCondition[],
+    public skipConditions: SkipCondition[] = [],
   ) {}
 
   async plan(tasks: Task[]): Promise<Run[]> {

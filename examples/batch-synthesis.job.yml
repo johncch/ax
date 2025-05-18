@@ -9,12 +9,9 @@ jobs:
       - type: files
         source: ./input/*.txt
         bind: transcript
-        skip-if:
-          - type: file-exist
-            pattern: "./output/results-{stem}.txt"
-        # skip-condition:
-        #   - folder: ./output/
-        #     contains: fileNameStem
+        # skip-if:
+        #   - type: file-exist
+        #     pattern: "./output/results-{stem}.txt"
 
     steps:
       - uses: chat

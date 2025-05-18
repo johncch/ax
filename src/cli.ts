@@ -1,10 +1,9 @@
 import { Command } from "@commander-js/extra-typings";
-import chalk from "chalk";
 import { getProvider } from "./ai/index.js";
 import { AIProvider } from "./ai/types.js";
 import { isBatchJob } from "./cli/configs/job.js";
-import { getJobConfig, getProviderConfig } from "./cli/configs/loaders.js";
-import { JobConfig, ProviderConfig } from "./cli/configs/types.js";
+import { getJobConfig, getServiceConfig } from "./cli/configs/loaders.js";
+import { JobConfig, ServiceConfig } from "./cli/configs/types.js";
 import { ConsoleWriter } from "./recorder/consoleWriter.js";
 import { LogWriter } from "./recorder/logWriter.js";
 import { Recorder } from "./recorder/recorder.js";
@@ -38,7 +37,7 @@ const program = new Command()
 program.parse(process.argv);
 const options = program.opts();
 
-// Parse the additional arguments
+// Parse additional arguments
 const variables: Record<string, string> = {};
 if (options.args) {
   options.args.forEach((arg: string) => {
@@ -49,7 +48,20 @@ if (options.args) {
   });
 }
 
-// Create a new Recorder instance
+process.on("uncaughtException", async (err) => {
+  console.error("Uncaught exception:");
+  console.error(err);
+
+  if (recorder) {
+    recorder.error?.log("Uncaught exception:");
+    recorder.error?.log(err.message);
+    recorder.error?.log(err.stack || "");
+    await recorder.shutdown();
+  }
+
+  process.exit(1);
+});
+
 const recorder = new Recorder();
 if (options.debug) {
   recorder.level = LogLevel.Debug;
@@ -63,19 +75,19 @@ if (options.log) {
 }
 
 if (options.debug) {
-  recorder.debug?.log({ kind: "heading", message: "Options" });
+  recorder.debug?.heading.log("Options");
   recorder.debug?.log(options);
-  recorder.debug?.log("Additional Arguments:");
+  recorder.debug?.heading.log("Additional Arguments:");
   recorder.debug?.log(variables);
 }
 
 /**
  * Read and load config, job
  */
-let serviceConfig: ProviderConfig;
+let serviceConfig: ServiceConfig;
 let jobConfig: JobConfig;
 try {
-  serviceConfig = await getProviderConfig({
+  serviceConfig = await getServiceConfig({
     configPath: options.config ?? null,
     options,
     recorder,
@@ -86,10 +98,9 @@ try {
     recorder,
   });
 } catch (e) {
-  console.error(`${chalk.red(e.message)}`);
-  console.error(e.stack);
-  recorder.debug?.log(e.stack);
-  console.log("");
+  recorder.error.log(e.message);
+  recorder.error.log(e.stack);
+  await recorder.shutdown();
   program.outputHelp();
   process.exit(1);
 }
@@ -99,34 +110,31 @@ try {
  */
 let provider: AIProvider;
 try {
-  provider = getProvider({
-    useConfig: jobConfig.using,
-    config: serviceConfig,
-    options,
-    recorder,
-  });
+  const { engine: providerKey, ...otherConfig } = jobConfig.using;
+  const providerConfig = {
+    ...serviceConfig[providerKey],
+    ...otherConfig,
+  };
+  provider = getProvider(providerKey, serviceConfig[providerKey]);
 } catch (e) {
-  console.error(`${chalk.red(e.message)}`);
-  recorder.debug?.log(e.stack);
-  console.log("");
+  recorder.error.log(e.message);
+  recorder.error.log(e.stack);
+  await recorder.shutdown();
   program.outputHelp();
   process.exit(1);
 }
 
 getToolRegistry().setConfig(serviceConfig);
 
-recorder.info.log({
-  kind: "heading",
-  message: "All systems operational. Running job...",
-});
+recorder.info?.heading.log("All systems operational. Running job...");
 const startTime = Date.now();
 if (options.dryRun) {
-  recorder.info.log("Dry run mode enabled. No API calls will be made.");
+  recorder.info?.log("Dry run mode enabled. No API calls will be made.");
 }
 
 const stats: Stats = { in: 0, out: 0 };
 for (const [jobName, job] of Object.entries(jobConfig.jobs)) {
-  recorder.info.log({ kind: "heading", message: `Executing "${jobName}"` });
+  recorder.info?.heading.log(`Executing "${jobName}"`);
   let response: any;
   if (isBatchJob(job)) {
     response = await concurrentWorkflow(job).execute({
@@ -146,13 +154,17 @@ for (const [jobName, job] of Object.entries(jobConfig.jobs)) {
     });
   }
   if (response) {
+    recorder.info?.heading.log("Response");
     recorder.info.log(response);
   }
 }
 
-recorder.info.log({ kind: "heading", message: "Usage" });
-recorder.info.log(`Total run time: ${Date.now() - startTime}ms`);
-recorder.info.log(`Input tokens: ${stats.in} `);
-recorder.info.log(`Output tokens: ${stats.out} `);
+recorder.info?.heading.log("Usage");
+recorder.info?.log(`Total run time: ${Date.now() - startTime}ms`);
+recorder.info?.log(`Input tokens: ${stats.in} `);
+recorder.info?.log(`Output tokens: ${stats.out} `);
 
-recorder.info.log({ kind: "heading", message: "Complete. Goodbye" });
+recorder.info?.heading.log("Complete. Goodbye");
+
+// Ensure all logs are written before exit
+await recorder.shutdown();

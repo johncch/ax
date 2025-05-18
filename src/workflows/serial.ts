@@ -2,13 +2,16 @@ import { Chat } from "../ai/chat.js";
 import { AIProvider } from "../ai/types.js";
 import { SerialJob } from "../cli/configs/types.js";
 import { configToTasks } from "../cli/utils.js";
+import { AxleError } from "../errors/AxleError.js";
+import { TaskError } from "../errors/TaskError.js";
 import { Recorder } from "../recorder/recorder.js";
 import { TaskStatus } from "../recorder/types.js";
 import { createNodeRegistry } from "../registry/nodeRegistryFactory.js";
 import { ProgramOptions, Stats, Task } from "../types.js";
+import { createErrorResult, createResult } from "../utils/result.js";
 import { friendly } from "../utils/utils.js";
 import { Keys } from "../utils/variables.constants.js";
-import { WorkflowExecutable } from "./types.js";
+import { WorkflowExecutable, WorkflowResult } from "./types.js";
 
 interface SerialWorkflow {
   (jobConfig: SerialJob): WorkflowExecutable;
@@ -37,66 +40,83 @@ export const serialWorkflow: SerialWorkflow = (
     options?: ProgramOptions;
     stats?: Stats;
     recorder?: Recorder;
-  }) => {
+  }): Promise<WorkflowResult> => {
     const { provider, variables, options, stats, recorder } = context;
     const id = crypto.randomUUID();
     const actionRegistry = createNodeRegistry();
 
-    recorder.info.log({
+    recorder?.info?.log({
       type: "task",
       id,
       status: TaskStatus.Running,
       message: `[${friendly(id)}] Starting job`,
     });
 
-    const tasks = await prepare({ recorder });
-    const chat = new Chat();
-    let hasError = false;
+    try {
+      const tasks = await prepare({ recorder });
+      const chat = new Chat();
 
-    for (const [index, task] of tasks.entries()) {
-      recorder.info.log({
-        type: "task",
-        id,
-        status: TaskStatus.Running,
-        message: `[${friendly(id)}] Processing step ${index + 1}: ${task.type}`,
-      });
-
-      try {
-        await actionRegistry.executeTask({
-          task,
-          chat,
-          provider,
-          variables,
-          options,
-          stats,
-          recorder,
+      for (const [index, task] of tasks.entries()) {
+        recorder?.info?.log({
+          type: "task",
+          id,
+          status: TaskStatus.Running,
+          message: `[${friendly(id)}] Processing step ${index + 1}: ${task.type}`,
         });
-      } catch (error) {
-        hasError = true;
-        console.error(error);
-      }
-    }
 
-    if (hasError) {
-      recorder.info.log({
-        type: "task",
-        status: TaskStatus.Fail,
-        id,
-        message: `[${friendly(id)}] Failed`,
-      });
-    } else {
-      recorder.info.log({
+        try {
+          await actionRegistry.executeTask({
+            task,
+            chat,
+            provider,
+            variables,
+            options,
+            stats,
+            recorder,
+          });
+        } catch (error) {
+          // This is to provide context on a specific step error
+          const taskError =
+            error instanceof AxleError
+              ? error
+              : new TaskError(`Error executing task ${task.type}`, {
+                  id: id,
+                  taskType: task.type,
+                  taskIndex: index,
+                  cause:
+                    error instanceof Error ? error : new Error(String(error)),
+                });
+          throw taskError;
+        }
+      }
+
+      recorder?.info?.log({
         type: "task",
         status: TaskStatus.Success,
         id,
         message: `[${friendly(id)}] Completed ${tasks.length} steps`,
       });
-    }
 
-    return {
-      response: variables[Keys.Latest],
-      stats,
-    };
+      return createResult(variables[Keys.Latest], stats);
+    } catch (error) {
+      const axleError =
+        error instanceof AxleError
+          ? error
+          : new AxleError(`Serial workflow execution failed`, {
+              id: id,
+              cause: error instanceof Error ? error : new Error(String(error)),
+            });
+
+      recorder?.info?.log({
+        type: "task",
+        status: TaskStatus.Fail,
+        id,
+        message: `[${friendly(id)}] Failed: ${axleError.message}`,
+      });
+      recorder?.error.log(axleError);
+
+      return createErrorResult(axleError, variables[Keys.Latest], stats);
+    }
   };
 
   return { execute };

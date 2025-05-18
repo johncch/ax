@@ -1,3 +1,4 @@
+import { Recorder } from "../recorder/recorder.js";
 import { ToolExecutable } from "../tools/types.js";
 import { Task } from "../types.js";
 import { replaceVariables } from "../utils/replace.js";
@@ -49,18 +50,19 @@ export class Instruct implements Task {
 
   compile(
     variables: Record<string, string>,
-    options?: { warnUnused?: boolean },
+    runtime: {
+      recorder?: Recorder;
+      options?: { warnUnused?: boolean };
+    } = {},
   ): string {
+    const { recorder, options } = runtime;
     const allVars = { ...variables, ...this.inputs }; // local takes precedence
     let finalPrompt = replaceVariables(this.prompt, allVars);
     if (options?.warnUnused) {
       const unreplaced = finalPrompt.match(/\{\{(.*?)\}\}/g);
       if (unreplaced) {
-        console.warn(
-          `Warning: The following variables were not replaced: ${unreplaced.join(
-            ", ",
-          )}`,
-        );
+        recorder.error.log(`Warning unused variables ${unreplaced.join(", ")}`);
+        throw new Error(`Unused variables: ${unreplaced.join(", ")}`);
       }
     }
     // TODO // more prompt stuff

@@ -3,8 +3,8 @@ import { Recorder } from "../../recorder/recorder.js";
 import { ProgramOptions } from "../../types.js";
 import { loadFile } from "../../utils/file.js";
 import { isJobConfig } from "./job.js";
-import { isProviderConfig } from "./service.js";
-import { JobConfig, ProviderConfig } from "./types.js";
+import { isServiceConfig } from "./service.js";
+import { JobConfig, ServiceConfig } from "./types.js";
 
 const DEFAULT_JOB_NAME = "ax.job";
 const DEFAULT_JOB_FORMATS = ["yaml", "yml", "json"];
@@ -35,7 +35,7 @@ export async function getJobConfig({
   } else {
     throw new Error("Invalid job file format");
   }
-  recorder?.debug?.log({ kind: "heading", message: "The Job Object" });
+  recorder?.debug?.heading.log("The Job Object");
   recorder?.debug?.log(result);
 
   const errVal = { value: "" };
@@ -48,7 +48,7 @@ export async function getJobConfig({
 const DEFAULT_CONFIG_NAME = "ax.config";
 const DEFAULT_CONFIG_FORMATS = ["yaml", "yml", "json"];
 
-export async function getProviderConfig({
+export async function getServiceConfig({
   configPath,
   options,
   recorder,
@@ -56,7 +56,7 @@ export async function getProviderConfig({
   configPath: string | null;
   options: ProgramOptions;
   recorder?: Recorder;
-}): Promise<ProviderConfig> {
+}): Promise<ServiceConfig> {
   const { content, format } = await loadFile({
     path: configPath,
     defaults: {
@@ -74,11 +74,11 @@ export async function getProviderConfig({
   } else {
     throw new Error("Invalid config file format");
   }
-  recorder?.debug?.log({ kind: "heading", message: "The Config Object" });
+  recorder?.debug?.heading.log("The Config Object");
   recorder?.debug?.log(result);
 
   const valError = { value: "" };
-  if (isProviderConfig(result, valError)) {
+  if (isServiceConfig(result, valError)) {
     return result;
   }
 
