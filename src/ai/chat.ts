@@ -4,7 +4,7 @@ import {
   Tool,
   ToolResultBlockParam,
   ToolUseBlockParam,
-} from "@anthropic-ai/sdk/src/resources/index.js";
+} from "@anthropic-ai/sdk/resources/index.mjs";
 import {
   ChatCompletionAssistantMessageParam,
   ChatCompletionMessageParam,

@@ -1,4 +1,4 @@
-import { MessageParam, Tool } from '@anthropic-ai/sdk/src/resources/index.js';
+import { MessageParam, Tool } from '@anthropic-ai/sdk/resources/index.mjs';
 
 type PlainObject = Record<string, unknown>;
 interface Stats {
