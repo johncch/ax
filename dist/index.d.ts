@@ -223,76 +223,52 @@ declare class Axle {
     get logs(): RecorderEntry[];
 }
 
-declare class Instruct implements Task {
+declare enum ResTypes {
+    String = "string",
+    List = "string[]",
+    Number = "number",
+    Boolean = "boolean"
+}
+type ResTypeStrings = `${ResTypes}`;
+type StringToType<S extends ResTypeStrings> = S extends ResTypes.String ? string : S extends ResTypes.List ? string[] : S extends ResTypes.Number ? number : S extends ResTypes.Boolean ? boolean : never;
+type StructuredOutput<T extends Record<string, ResTypeStrings>> = {
+    [K in keyof T]: StringToType<T[K]>;
+};
+
+type DefaultresFormatType = {
+    response: ResTypes.String;
+};
+declare class Instruct<O extends Record<string, ResTypeStrings>> implements Task {
     readonly type = "instruct";
+    private _result;
     prompt: string;
     system: string | null;
     inputs: Record<string, string>;
-    outputFormat: Record<string, string>;
     tools: Record<string, ToolExecutable>;
-    constructor(prompt: string, outputFormat?: Record<string, string>);
+    resFormat: O;
+    rawResponse: string;
+    private constructor();
+    static with<NewO extends Record<string, ResTypeStrings>>(prompt: string, resFormat: NewO): Instruct<NewO>;
+    static with(prompt: string): Instruct<DefaultresFormatType>;
     setInputs(inputs: Record<string, string>): void;
     addInput(name: string, value: string): void;
     addTools(tools: ToolExecutable[]): void;
     addTool(tool: ToolExecutable): void;
     hasTools(): boolean;
+    get result(): StructuredOutput<O>;
     compile(variables: Record<string, string>, runtime?: {
         recorder?: Recorder;
         options?: {
             warnUnused?: boolean;
         };
     }): string;
+    finalize(rawValue: string): StructuredOutput<O>;
 }
 
-interface BraveProviderConfig {
-    "api-key": string;
-    rateLimit?: number;
-}
-type ToolProviderConfig = {
-    brave?: BraveProviderConfig;
-};
-type ServiceConfig = Partial<AIProviderConfig> & ToolProviderConfig;
-type Job = SerialJob | BatchJob;
-interface SerialJob {
-    type: "serial";
-    tools?: string[];
-    steps: Step[];
-}
-interface BatchJob {
-    type: "batch";
-    tools?: string[];
-    batch: BatchOptions[];
-    steps: Step[];
-}
-interface SkipOptions {
-    type: "file-exist";
-    pattern: string;
-}
-interface BatchOptions {
-    type: "files";
-    source: string;
-    bind: string;
-    ["skip-if"]?: SkipOptions[];
-}
-type Step = ChatStep | WriteToDiskStep;
-interface StepBase {
-    readonly uses: string;
-}
-interface ChatStep extends StepBase {
-    uses: "chat";
-    system?: string;
-    message: string;
-    replace?: Replace[];
-    tools?: string[];
-}
-interface WriteToDiskStep extends StepBase {
-    uses: "write-to-disk";
+declare class WriteOutputTask implements Task {
     output: string;
-}
-interface Replace {
-    source: "file";
-    pattern: string;
-    files: string | string[];
+    type: "write-to-disk";
+    constructor(output: string);
 }
 
-export { type AIProvider, Axle, Instruct, type Job, type ServiceConfig as ProviderConfig, type SerializedExecutionResponse, type ToolProviderConfig };
+export { type AIProvider, Axle, Instruct, type SerializedExecutionResponse, WriteOutputTask };

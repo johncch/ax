@@ -33,9 +33,11 @@ export class ConsoleWriter implements RecorderWriter {
   private spinnerInterval = 80; // ms
   private lastRender = "";
   private isRendering = false;
+  private inline = true;
 
-  constructor(options: { truncate?: number }) {
+  constructor(options: { truncate?: number; inline?: boolean }) {
     this.truncate = options.truncate ?? 0;
+    this.inline = options.inline ?? true;
   }
 
   private startSpinner(): void {
@@ -60,7 +62,7 @@ export class ConsoleWriter implements RecorderWriter {
     this.isRendering = true;
 
     // Clear previous render
-    if (this.lastRender) {
+    if (this.inline && this.lastRender) {
       const lines = this.lastRender.split("\n").length;
       readline.moveCursor(process.stdout, 0, -lines + 1);
       readline.clearScreenDown(process.stdout);

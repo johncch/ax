@@ -6,16 +6,19 @@ import {
   ToolCall,
 } from "../../ai/types.js";
 import { Instruct } from "../../core/Instruct.js";
+import { ResTypeStrings } from "../../core/types.js";
 import { Recorder } from "../../recorder/recorder.js";
 import { TaskHandler } from "../../registry/taskHandler.js";
 import { ToolExecutable, ToolSchema } from "../../tools/types.js";
 import { ProgramOptions, Stats } from "../../types.js";
 import { Keys } from "../../utils/variables.constants.js";
 
-export class ChatTaskHandler implements TaskHandler<Instruct> {
+export class ChatTaskHandler<O extends Record<string, ResTypeStrings>>
+  implements TaskHandler<Instruct<O>>
+{
   readonly taskType = "instruct";
 
-  canHandle(task: any): task is Instruct {
+  canHandle(task: any): task is Instruct<O> {
     return (
       task &&
       typeof task === "object" &&
@@ -25,7 +28,7 @@ export class ChatTaskHandler implements TaskHandler<Instruct> {
   }
 
   async execute(params: {
-    task: Instruct;
+    task: Instruct<O>;
     chat: Chat;
     provider: AIProvider;
     variables: Record<string, any>;
@@ -41,8 +44,10 @@ export class ChatTaskHandler implements TaskHandler<Instruct> {
   }
 }
 
-export async function executeChatAction(params: {
-  instruct: Instruct;
+export async function executeChatAction<
+  O extends Record<string, ResTypeStrings>,
+>(params: {
+  instruct: Instruct<O>;
   chat: Chat;
   provider: AIProvider;
   stats?: Stats;
@@ -84,7 +89,13 @@ export async function executeChatAction(params: {
       switch (response.reason) {
         case AIProviderStopReason.Stop: {
           if (response.message.content) {
-            chat.addAssistant(response.message.content);
+            const content = response.message.content;
+            chat.addAssistant(content);
+            const result = instruct.finalize(content);
+            for (const [key, value] of Object.entries(result)) {
+              variables[key] = value;
+            }
+            variables[Keys.LastResult] = result;
             variables[Keys.Latest] = response.message.content;
           }
           continueProcessing = false;
@@ -132,7 +143,10 @@ export async function executeChatAction(params: {
   return { action: "continue" };
 }
 
-async function executeToolCalls(toolCalls: ToolCall[], instruct: Instruct) {
+async function executeToolCalls<O extends Record<string, ResTypeStrings>>(
+  toolCalls: ToolCall[],
+  instruct: Instruct<O>,
+) {
   const promises = [];
   for (const call of toolCalls) {
     promises.push(

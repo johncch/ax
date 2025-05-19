@@ -97,7 +97,7 @@ export const serialWorkflow: SerialWorkflow = (
         message: `[${friendly(id)}] Completed ${tasks.length} steps`,
       });
 
-      return createResult(variables[Keys.Latest], stats);
+      return createResult(variables[Keys.LastResult], stats);
     } catch (error) {
       const axleError =
         error instanceof AxleError
@@ -115,7 +115,7 @@ export const serialWorkflow: SerialWorkflow = (
       });
       recorder?.error.log(axleError);
 
-      return createErrorResult(axleError, variables[Keys.Latest], stats);
+      return createErrorResult(axleError, variables[Keys.LastResult], stats);
     }
   };
 
