@@ -235,21 +235,17 @@ type StructuredOutput<T extends Record<string, ResTypeStrings>> = {
     [K in keyof T]: StringToType<T[K]>;
 };
 
-type DefaultresFormatType = {
-    response: ResTypes.String;
-};
-declare class Instruct<O extends Record<string, ResTypeStrings>> implements Task {
+declare abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>> implements Task {
     readonly type = "instruct";
-    private _result;
+    protected _result: StructuredOutput<O> | undefined;
     prompt: string;
     system: string | null;
     inputs: Record<string, string>;
     tools: Record<string, ToolExecutable>;
     resFormat: O;
     rawResponse: string;
-    private constructor();
-    static with<NewO extends Record<string, ResTypeStrings>>(prompt: string, resFormat: NewO): Instruct<NewO>;
-    static with(prompt: string): Instruct<DefaultresFormatType>;
+    finalPrompt: string;
+    protected constructor(prompt: string, resFormat: O);
     setInputs(inputs: Record<string, string>): void;
     addInput(name: string, value: string): void;
     addTools(tools: ToolExecutable[]): void;
@@ -262,7 +258,55 @@ declare class Instruct<O extends Record<string, ResTypeStrings>> implements Task
             warnUnused?: boolean;
         };
     }): string;
-    finalize(rawValue: string): StructuredOutput<O>;
+    protected getFinalUserPrompt(variables: Record<string, string>, runtime?: {
+        recorder?: Recorder;
+        options?: {
+            warnUnused?: boolean;
+        };
+    }): string;
+    protected getFormatInstructions(): string;
+    /**
+     *
+     * @param rawValue - the raw value from the AI
+     * @param taggedSections - optional, for overrides to use
+     * @returns - the parsed result
+     */
+    finalize(rawValue: string, taggedSections?: {
+        tags: Record<string, string>;
+        remaining: string;
+    }): StructuredOutput<O>;
+    protected parseTaggedSections(input: string): {
+        tags: Record<string, string>;
+        remaining: string;
+    };
+    protected typeResponses(typeString: ResTypeStrings, rawValue: string): StringToType<ResTypes>;
+}
+
+type DefaultresFormatType = {
+    response: ResTypes.String;
+};
+declare class Instruct<O extends Record<string, ResTypeStrings>> extends AbstractInstruct<O> {
+    private constructor();
+    static with<NewO extends Record<string, ResTypeStrings>>(prompt: string, resFormat: NewO): Instruct<NewO>;
+    static with(prompt: string): Instruct<DefaultresFormatType>;
+}
+
+type DefaultResFormatType = {
+    response: ResTypes.String;
+};
+declare class ChainOfThought<O extends Record<string, ResTypeStrings>> extends AbstractInstruct<O> {
+    private constructor();
+    static with<NewO extends Record<string, ResTypeStrings>>(prompt: string, resFormat: NewO): ChainOfThought<NewO>;
+    static with(prompt: string): ChainOfThought<DefaultResFormatType>;
+    compile(variables: Record<string, string>, runtime?: {
+        recorder?: Recorder;
+        options?: {
+            warnUnused?: boolean;
+        };
+    }): string;
+    finalize(rawValue: string): StructuredOutput<O> & {
+        thinking: any;
+    };
 }
 
 declare class WriteOutputTask implements Task {
@@ -271,4 +315,4 @@ declare class WriteOutputTask implements Task {
     constructor(output: string);
 }
 
-export { type AIProvider, Axle, Instruct, type SerializedExecutionResponse, WriteOutputTask };
+export { type AIProvider, Axle, ChainOfThought, Instruct, type SerializedExecutionResponse, WriteOutputTask };

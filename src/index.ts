@@ -2,7 +2,7 @@
 export { Axle } from "./core/Axle.js";
 
 // Export Tasks
-export { Instruct } from "./core/Instruct.js";
+export { Instruct, ChainOfThought } from "./core/index.js";
 export * from "./tasks/index.js";
 
 // Config exports
