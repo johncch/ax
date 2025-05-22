@@ -1,8 +1,9 @@
 import { Chat } from "../../ai/chat.js";
 import {
   AIProvider,
-  AIProviderStopReason,
   ChatItemAssistant,
+  ChatItemToolCallResult,
+  StopReason,
   ToolCall,
 } from "../../ai/types.js";
 import { Instruct } from "../../core/Instruct.js";
@@ -87,7 +88,7 @@ export async function executeChatAction<
 
     if (response.type === "success") {
       switch (response.reason) {
-        case AIProviderStopReason.Stop: {
+        case StopReason.Stop: {
           if (response.message.content) {
             const content = response.message.content;
             chat.addAssistant(content);
@@ -101,12 +102,12 @@ export async function executeChatAction<
           continueProcessing = false;
           return { action: "continue" };
         }
-        case AIProviderStopReason.Length: {
+        case StopReason.Length: {
           throw new Error(
             "Incomplete model output due to `max_tokens` parameter or token limit",
           );
         }
-        case AIProviderStopReason.FunctionCall: {
+        case StopReason.FunctionCall: {
           let message = response.message as ChatItemAssistant;
           if (response.message) {
             chat.addAssistant(message.content, message.toolCalls);
@@ -114,15 +115,12 @@ export async function executeChatAction<
           }
 
           if (message.toolCalls && message.toolCalls.length > 0) {
-            const toolCallResult = await executeToolCalls(
+            const results = await executeToolCalls(
               message.toolCalls,
               instruct,
+              { recorder },
             );
-            recorder?.debug?.log(toolCallResult);
-            const results = toolCallResult.map((r) => ({
-              id: r.id,
-              content: JSON.stringify(r.results),
-            }));
+            recorder?.debug?.log(results);
             chat.addTools(results);
 
             continueProcessing = true;
@@ -146,7 +144,9 @@ export async function executeChatAction<
 async function executeToolCalls<O extends Record<string, ResTypeStrings>>(
   toolCalls: ToolCall[],
   instruct: Instruct<O>,
-) {
+  runtime: { recorder?: Recorder } = {},
+): Promise<ChatItemToolCallResult[]> {
+  const { recorder } = runtime;
   const promises = [];
   for (const call of toolCalls) {
     promises.push(
@@ -156,13 +156,14 @@ async function executeToolCalls<O extends Record<string, ResTypeStrings>>(
           reject(`Tool not found: ${call.name}`);
           return;
         }
+        recorder?.debug?.heading.log(`Executing tool ${tool.name}`);
 
         let args: Record<string, any> = {};
         try {
-          const parsed = JSON.parse(call.arguments);
-          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-            args = parsed;
-          }
+          args =
+            typeof call.arguments === "string"
+              ? JSON.parse(call.arguments)
+              : call.arguments;
         } catch {
           reject(
             `argument for tool ${call.name} is not valid: ${JSON.stringify(call.arguments)}`,
@@ -171,7 +172,14 @@ async function executeToolCalls<O extends Record<string, ResTypeStrings>>(
 
         tool
           .execute(args)
-          .then((results) => resolve({ id: call.id, results }))
+          .then((results) => {
+            recorder?.debug?.log(`Complete tool ${tool.name}: ${call.id}`);
+            resolve({
+              id: call.id,
+              name: call.name,
+              content: JSON.stringify(results),
+            });
+          })
           .catch(reject);
       }),
     );

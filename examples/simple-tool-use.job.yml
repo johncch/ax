@@ -1,0 +1,16 @@
+using:
+  # engine: openai
+  # engine: google
+  engine: anthropic
+  # engine: ollama
+  # model: qwen3:32b
+
+jobs:
+  calculate:
+    type: serial
+    steps:
+      - uses: chat
+        message: |
+          Use the calculator tool to add 2 and 2 together.
+        tools:
+          - calculator

@@ -1,5 +1,3 @@
-import { MessageParam, Tool } from '@anthropic-ai/sdk/resources/index.mjs';
-
 type PlainObject = Record<string, unknown>;
 interface Stats {
     in: number;
@@ -94,18 +92,6 @@ declare class Chat {
     addUser(message: string): void;
     addAssistant(message: string, toolCalls?: ToolCall[]): void;
     addTools(input: Array<ChatItemToolCallResult>): void;
-    toOpenAI(): {
-        tools: {
-            type: "function";
-            function: ToolSchema;
-        }[];
-        messages: any[];
-    };
-    toAnthropic(): {
-        system: string;
-        messages: Array<MessageParam>;
-        tools: Tool[];
-    };
     toString(): string;
 }
 
@@ -121,10 +107,15 @@ type OpenAIProviderConfig = {
     "api-key": string;
     model?: string;
 };
+type GoogleAIProviderConfig = {
+    "api-key": string;
+    model?: string;
+};
 interface AIProviderConfig {
     ollama: OllamaProviderConfig;
     anthropic: AnthropicProviderConfig;
     openai: OpenAIProviderConfig;
+    google: GoogleAIProviderConfig;
 }
 interface AIProvider {
     createChatCompletionRequest(chat: Chat): AIRequest;
@@ -137,13 +128,13 @@ interface AIRequest {
 interface ToolCall {
     id: string;
     name: string;
-    arguments: string;
+    arguments: string | Record<string, unknown>;
 }
 type AIResponse = AISuccessResponse | AIErrorResponse;
 interface AISuccessResponse {
     type: "success";
     id: string;
-    reason: AIProviderStopReason;
+    reason: StopReason;
     message: ChatItemAssistant;
     model: string;
     toolCalls?: ToolCall[];
@@ -159,7 +150,7 @@ interface AIErrorResponse {
     usage: Stats;
     raw: any;
 }
-declare enum AIProviderStopReason {
+declare enum StopReason {
     Stop = 0,
     Length = 1,
     FunctionCall = 2,
@@ -173,11 +164,12 @@ interface ChatItemUser {
 }
 interface ChatItemAssistant {
     role: "assistant";
-    content: string;
+    content?: string;
     toolCalls?: ToolCall[];
 }
 interface ChatItemToolCallResult {
     id: string;
+    name: string;
     content: string;
 }
 interface ChatItemToolCall {

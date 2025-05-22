@@ -1,13 +1,15 @@
 import OpenAI from "openai";
-
+import {
+  ChatCompletionAssistantMessageParam,
+  ChatCompletionMessageParam,
+  ChatCompletionSystemMessageParam,
+  ChatCompletionTool,
+  ChatCompletionToolMessageParam,
+  ChatCompletionUserMessageParam,
+} from "openai/resources.mjs";
 import { Recorder } from "../recorder/recorder.js";
 import { Chat } from "./chat.js";
-import {
-  AIProvider,
-  AIProviderStopReason,
-  AIRequest,
-  AIResponse,
-} from "./types.js";
+import { AIProvider, AIRequest, AIResponse, StopReason } from "./types.js";
 
 /**
  * This is a convenience constant dictionary that exposes the
@@ -53,14 +55,14 @@ class OpenAIChatCompletionRequest implements AIRequest {
     const { client, model } = this.provider;
     const request = {
       model: model,
-      ...this.chat.toOpenAI(),
+      ...prepareRequest(this.chat),
     };
     recorder?.debug?.log(request);
 
     let result: AIResponse;
     try {
       const completion = await client.chat.completions.create(request);
-      result = translate(completion);
+      result = translateResponse(completion);
     } catch (e) {
       recorder?.error?.log(e);
       result = {
@@ -84,17 +86,81 @@ class OpenAIChatCompletionRequest implements AIRequest {
 function getStopReason(reason: string) {
   switch (reason) {
     case "length":
-      return AIProviderStopReason.Length;
+      return StopReason.Length;
     case "stop":
-      return AIProviderStopReason.Stop;
+      return StopReason.Stop;
     case "tool_calls":
-      return AIProviderStopReason.FunctionCall;
+      return StopReason.FunctionCall;
     default:
-      return AIProviderStopReason.Error;
+      return StopReason.Error;
   }
 }
 
-function translate(
+function prepareRequest(chat: Chat) {
+  const systemMsg: ChatCompletionSystemMessageParam[] = [];
+  if (chat.system) {
+    systemMsg.push({
+      role: "system",
+      content: chat.system,
+    });
+  }
+
+  const tools: ChatCompletionTool[] | undefined =
+    chat.tools.length > 0
+      ? chat.tools.map((schema) => {
+          return {
+            type: "function",
+            function: schema,
+          };
+        })
+      : undefined;
+
+  const messages = chat.messages
+    .map((msg) => {
+      switch (msg.role) {
+        case "tool":
+          return msg.content.map((r) => ({
+            role: "tool",
+            tool_call_id: r.id,
+            content: r.content,
+          })) satisfies ChatCompletionToolMessageParam[];
+
+        case "assistant":
+          return {
+            role: msg.role,
+            content: msg.content,
+            tool_calls: msg.toolCalls.map((call) => {
+              const id = call.id;
+              return {
+                type: "function",
+                function: {
+                  name: call.name,
+                  arguments:
+                    typeof call.arguments === "string"
+                      ? call.arguments
+                      : JSON.stringify(call.arguments),
+                },
+                ...(id && { id }),
+              };
+            }),
+          } satisfies ChatCompletionAssistantMessageParam;
+
+        default:
+          return {
+            role: msg.role,
+            content: msg.content,
+          } satisfies ChatCompletionUserMessageParam;
+      }
+    })
+    .flat(Infinity) as Array<ChatCompletionMessageParam>;
+
+  return {
+    messages: [...systemMsg, ...messages],
+    ...(tools && { tools }),
+  };
+}
+
+function translateResponse(
   completion: OpenAI.Chat.Completions.ChatCompletion,
 ): AIResponse {
   if (completion.choices.length > 0) {

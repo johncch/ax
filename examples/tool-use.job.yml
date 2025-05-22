@@ -1,5 +1,6 @@
 using:
-  engine: openai
+  # engine: openai
+  engine: google
 
 jobs:
   musician-research:
@@ -12,6 +13,6 @@ jobs:
           You are a researcher trying to find out about this musician or band.
         message: |
           You are trying to find out about this musical act: {{name}} .
-          Collate a short biography, their recent discograph, and their upcoming tour dates and locations based on results on the internet.
+          Use the tools to collate a short biography, their recent discograph, and their upcoming tour dates and locations based on results on the internet.
       - uses: write-to-disk
         output: ./output/{name}.txt

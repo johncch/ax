@@ -1,21 +1,27 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { Recorder } from "../recorder/recorder.js";
 
+import {
+  MessageParam,
+  TextBlockParam,
+  ToolResultBlockParam,
+  ToolUseBlockParam,
+} from "@anthropic-ai/sdk/resources";
 import { Chat } from "./chat.js";
 import {
   AIProvider,
-  AIProviderStopReason,
   AIRequest,
   AIResponse,
+  StopReason,
   ToolCall,
 } from "./types.js";
 
-const Models = {
+export const Models = {
   CLAUDE_3_7_SONNET_LATEST: "claude-3-7-sonnet-latest",
   CLAUDE_3_7_SONNET_20250219: "claude-3-7-sonnet-20250219",
   CLAUDE_3_5_HAIKU_LATEST: "claude-3-5-haiku-latest",
   CLAUDE_3_5_HAIKU_20241022: "claude-3-5-haiku-20241022",
-};
+} as const;
 
 const DEFAULT_MODEL = Models.CLAUDE_3_5_HAIKU_LATEST;
 
@@ -47,7 +53,7 @@ class AnthropicChatRequest implements AIRequest {
     const { client, model } = this.provider;
     const request = {
       model: model,
-      ...this.chat.toAnthropic(),
+      ...prepareRequest(this.chat),
       max_tokens: getMaxTokens(model),
     };
     recorder?.debug?.log(request);
@@ -88,27 +94,79 @@ function getMaxTokens(model: string): number {
   }
 }
 
-/**
- * Translate an Anthropic completion into a standard (OpenAI) response.
- */
 function getStopReason(reason: string) {
   switch (reason) {
     case "max_tokens":
-      return AIProviderStopReason.Length;
+      return StopReason.Length;
     case "end_turn":
-      return AIProviderStopReason.Stop;
+      return StopReason.Stop;
     case "stop_sequence":
-      return AIProviderStopReason.Stop;
+      return StopReason.Stop;
     case "tool_use":
-      return AIProviderStopReason.FunctionCall;
+      return StopReason.FunctionCall;
     default:
-      return AIProviderStopReason.Error;
+      return StopReason.Error;
   }
+}
+
+function prepareRequest(chat: Chat) {
+  const messages = chat.messages.map((msg) => {
+    switch (msg.role) {
+      case "assistant":
+        const content: Array<TextBlockParam | ToolUseBlockParam> = [];
+        content.push({ type: "text", text: msg.content });
+        if (msg.toolCalls) {
+          content.push(
+            ...msg.toolCalls.map(
+              (call) =>
+                ({
+                  type: "tool_use",
+                  id: call.id,
+                  name: call.name,
+                  input: call.arguments,
+                }) satisfies ToolUseBlockParam,
+            ),
+          );
+        }
+        return {
+          role: "assistant",
+          content,
+        };
+
+      case "tool":
+        return {
+          role: "user",
+          content: msg.content.map((r) => ({
+            type: "tool_result",
+            tool_use_id: r.id,
+            content: r.content,
+          })) satisfies Array<ToolResultBlockParam>,
+        } satisfies MessageParam;
+
+      default:
+        return {
+          role: "user",
+          content: msg.content,
+        } satisfies MessageParam;
+    }
+  }) satisfies Array<MessageParam>;
+
+  const tools = chat.tools.map((t) => ({
+    name: t.name,
+    description: t.description,
+    input_schema: t.parameters,
+  }));
+
+  return {
+    system: chat.system,
+    messages: messages,
+    tools: tools,
+  };
 }
 
 function translate(completion: Anthropic.Messages.Message): AIResponse {
   const stopReason = getStopReason(completion.stop_reason);
-  if (stopReason === AIProviderStopReason.Error) {
+  if (stopReason === StopReason.Error) {
     return {
       type: "error",
       error: {
@@ -123,7 +181,7 @@ function translate(completion: Anthropic.Messages.Message): AIResponse {
     };
   }
 
-  if (stopReason === AIProviderStopReason.FunctionCall) {
+  if (stopReason === StopReason.FunctionCall) {
     const content = completion.content[0];
     const contentText = content.type === "text" ? content.text : "";
 
@@ -144,7 +202,7 @@ function translate(completion: Anthropic.Messages.Message): AIResponse {
       type: "success",
       id: completion.id,
       model: completion.model,
-      reason: AIProviderStopReason.FunctionCall,
+      reason: StopReason.FunctionCall,
       message: {
         role: completion.role,
         content: contentText,

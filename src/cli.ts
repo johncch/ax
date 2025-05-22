@@ -116,7 +116,7 @@ try {
     ...serviceConfig[providerKey],
     ...otherConfig,
   };
-  provider = getProvider(providerKey, serviceConfig[providerKey]);
+  provider = getProvider(providerKey, providerConfig);
 } catch (e) {
   recorder.error.log(e.message);
   recorder.error.log(e.stack);

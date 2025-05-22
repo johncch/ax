@@ -57,11 +57,11 @@ export function isUsing(
   }
 
   // The engine property should be a valid key for AIProviderConfig
-  const validProviders = ["openai", "anthropic", "ollama"];
+  const validProviders = ["openai", "anthropic", "ollama", "google"];
   if (!validProviders.includes(obj.engine)) {
     if (errVal)
       errVal.value =
-        "Invalid provider type. Must be 'openai', 'anthropic', or 'ollama'";
+        "Invalid provider type. Must be 'openai', 'anthropic', 'google', or 'ollama'";
     return false;
   }
 
@@ -79,6 +79,7 @@ export function isUsing(
         return false;
       }
       break;
+    case "google":
     case "anthropic":
     case "openai":
       // Optional api-key property
@@ -96,8 +97,6 @@ export function isUsing(
 
   return true;
 }
-
-
 
 export function isJob(obj: any, errVal?: ValidationError): obj is Job {
   if (!obj || typeof obj !== "object") {

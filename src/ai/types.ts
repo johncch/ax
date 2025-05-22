@@ -8,11 +8,13 @@ import { Chat } from "./chat.js";
 export type OllamaProviderConfig = { url?: string; model: string };
 export type AnthropicProviderConfig = { "api-key": string; model?: string };
 export type OpenAIProviderConfig = { "api-key": string; model?: string };
+export type GoogleAIProviderConfig = { "api-key": string; model?: string };
 
 export interface AIProviderConfig {
   ollama: OllamaProviderConfig;
   anthropic: AnthropicProviderConfig;
   openai: OpenAIProviderConfig;
+  google: GoogleAIProviderConfig;
 }
 
 /*
@@ -30,7 +32,7 @@ export interface AIRequest {
 export interface ToolCall {
   id: string;
   name: string;
-  arguments: string;
+  arguments: string | Record<string, unknown>;
 }
 
 export type AIResponse = AISuccessResponse | AIErrorResponse;
@@ -38,7 +40,7 @@ export type AIResponse = AISuccessResponse | AIErrorResponse;
 export interface AISuccessResponse {
   type: "success";
   id: string;
-  reason: AIProviderStopReason;
+  reason: StopReason;
   message: ChatItemAssistant;
   model: string;
   toolCalls?: ToolCall[];
@@ -56,7 +58,7 @@ export interface AIErrorResponse {
   raw: any;
 }
 
-export enum AIProviderStopReason {
+export enum StopReason {
   Stop,
   Length,
   FunctionCall,
@@ -73,12 +75,13 @@ export interface ChatItemUser {
 
 export interface ChatItemAssistant {
   role: "assistant";
-  content: string;
+  content?: string;
   toolCalls?: ToolCall[];
 }
 
 export interface ChatItemToolCallResult {
   id: string;
+  name: string;
   content: string;
 }
 

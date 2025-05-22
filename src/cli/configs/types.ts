@@ -1,6 +1,7 @@
 import {
   AIProviderConfig,
   AnthropicProviderConfig,
+  GoogleAIProviderConfig,
   OllamaProviderConfig,
   OpenAIProviderConfig,
 } from "../../ai/types.js";
@@ -32,7 +33,8 @@ export interface JobConfig {
 export type AIProviderUse =
   | ({ engine: "ollama" } & Partial<OllamaProviderConfig>)
   | ({ engine: "anthropic" } & Partial<AnthropicProviderConfig>)
-  | ({ engine: "openai" } & Partial<OpenAIProviderConfig>);
+  | ({ engine: "openai" } & Partial<OpenAIProviderConfig>)
+  | ({ engine: "google" } & Partial<GoogleAIProviderConfig>);
 
 export type Job = SerialJob | BatchJob;
 
