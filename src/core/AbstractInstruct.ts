@@ -9,8 +9,8 @@ import {
   StructuredOutput,
 } from "./types.js";
 
-type DefaultresFormatType = { response: ResTypes.String };
-export const DEFAULT_OUTPUT_VALUE: DefaultresFormatType = {
+type DefaultResFormatType = { response: ResTypes.String };
+export const DEFAULT_OUTPUT_VALUE: DefaultResFormatType = {
   response: ResTypes.String,
 };
 

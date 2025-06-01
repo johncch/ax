@@ -6,7 +6,10 @@ export function stringify(obj: any): string {
   return typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
 }
 
-export function friendly(id: string): string {
+export function friendly(id: string, name?: string): string {
+  if (name) {
+    return `${name}:${id.slice(0, 8)}`;
+  }
   return id.slice(0, 8);
 }
 

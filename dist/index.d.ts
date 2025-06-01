@@ -1,4 +1,13 @@
 type PlainObject = Record<string, unknown>;
+type ProgramOptions = {
+    dryRun?: boolean;
+    config?: string;
+    warnUnused?: boolean;
+    job?: string;
+    log?: boolean;
+    debug?: boolean;
+    args?: string[];
+};
 interface Stats {
     in: number;
     out: number;
@@ -189,6 +198,14 @@ declare class AxleError extends Error {
     });
 }
 
+interface Planner {
+    plan(tasks: Task[]): Promise<Run[]>;
+}
+
+interface Run {
+    tasks: Task[];
+    variables: Record<string, any>;
+}
 interface SerializedExecutionResponse {
     response: string;
     stats: Stats;
@@ -199,6 +216,32 @@ interface WorkflowResult<T = any> {
     error?: AxleError;
     success: boolean;
 }
+interface WorkflowExecutable {
+    execute: (context: {
+        provider: AIProvider;
+        variables: Record<string, any>;
+        options?: ProgramOptions;
+        stats?: Stats;
+        recorder?: Recorder;
+        name?: string;
+    }) => Promise<WorkflowResult>;
+}
+interface DAGNodeDefinition {
+    task: Task | Task[];
+    dependsOn?: string | string[];
+}
+interface DAGConcurrentNodeDefinition {
+    planner: Planner;
+    tasks: Task[];
+    dependsOn?: string | string[];
+}
+interface DAGDefinition {
+    [nodeName: string]: Task | Task[] | DAGNodeDefinition | DAGConcurrentNodeDefinition;
+}
+interface DAGWorkflowOptions {
+    continueOnError?: boolean;
+    maxConcurrency?: number;
+}
 
 declare class Axle {
     private provider;
@@ -206,12 +249,21 @@ declare class Axle {
     private variables;
     private recorder;
     constructor(config: Partial<AIProviderConfig>);
+    addWriter(writer: RecorderWriter): void;
     /**
      * The execute function takes in a list of Tasks
      * @param tasks
      * @returns
      */
     execute(...tasks: Task[]): Promise<WorkflowResult>;
+    /**
+     * Execute a DAG workflow
+     * @param dagDefinition - The DAG definition object
+     * @param variables - Additional variables to pass to the workflow
+     * @param options - DAG execution options
+     * @returns Promise<WorkflowResult>
+     */
+    executeDAG(dagDefinition: DAGDefinition, variables?: Record<string, any>, options?: DAGWorkflowOptions): Promise<WorkflowResult>;
     get logs(): RecorderEntry[];
 }
 
@@ -274,13 +326,13 @@ declare abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>
     protected typeResponses(typeString: ResTypeStrings, rawValue: string): StringToType<ResTypes>;
 }
 
-type DefaultresFormatType = {
+type DefaultResFormatType$1 = {
     response: ResTypes.String;
 };
 declare class Instruct<O extends Record<string, ResTypeStrings>> extends AbstractInstruct<O> {
     private constructor();
     static with<NewO extends Record<string, ResTypeStrings>>(prompt: string, resFormat: NewO): Instruct<NewO>;
-    static with(prompt: string): Instruct<DefaultresFormatType>;
+    static with(prompt: string): Instruct<DefaultResFormatType$1>;
 }
 
 type DefaultResFormatType = {
@@ -301,10 +353,81 @@ declare class ChainOfThought<O extends Record<string, ResTypeStrings>> extends A
     };
 }
 
-declare class WriteOutputTask implements Task {
-    output: string;
+interface WriteToDiskTask extends Task {
     type: "write-to-disk";
-    constructor(output: string);
+    output: string;
+    keys: string[];
+}
+declare class WriteOutputTask implements WriteToDiskTask {
+    output: string;
+    keys: string[];
+    type: "write-to-disk";
+    constructor(output: string, keys?: string[]);
 }
 
-export { type AIProvider, Axle, ChainOfThought, Instruct, type SerializedExecutionResponse, WriteOutputTask };
+interface DAGJob {
+    [name: string]: Job & {
+        dependsOn?: string | string[];
+    };
+}
+type Job = SerialJob | BatchJob;
+interface SerialJob {
+    tools?: string[];
+    steps: Step[];
+}
+interface BatchJob {
+    tools?: string[];
+    batch: BatchOptions[];
+    steps: Step[];
+}
+interface SkipOptions {
+    type: "file-exist";
+    pattern: string;
+}
+interface BatchOptions {
+    type: "files";
+    source: string;
+    bind: string;
+    ["skip-if"]?: SkipOptions[];
+}
+type Step = ChatStep | WriteToDiskStep;
+interface StepBase {
+    readonly uses: string;
+}
+interface ChatStep extends StepBase {
+    uses: "chat";
+    system?: string;
+    message: string;
+    output?: Record<string, ResTypeStrings>;
+    replace?: Replace[];
+    tools?: string[];
+}
+interface WriteToDiskStep extends StepBase {
+    uses: "write-to-disk";
+    output: string;
+    keys: string | string[];
+}
+interface Replace {
+    source: "file";
+    pattern: string;
+    files: string | string[];
+}
+
+interface ConcurrentWorkflow {
+    (jobConfig: BatchJob): WorkflowExecutable;
+    (planner: Planner, ...instructions: Task[]): WorkflowExecutable;
+}
+declare const concurrentWorkflow: ConcurrentWorkflow;
+
+interface DAGWorkflow {
+    (definition: DAGDefinition | DAGJob, options?: DAGWorkflowOptions): WorkflowExecutable;
+}
+declare const dagWorkflow: DAGWorkflow;
+
+interface SerialWorkflow {
+    (jobConfig: SerialJob): WorkflowExecutable;
+    (...instructions: Task[]): WorkflowExecutable;
+}
+declare const serialWorkflow: SerialWorkflow;
+
+export { type AIProvider, Axle, ChainOfThought, type DAGDefinition, type DAGWorkflowOptions, Instruct, type SerializedExecutionResponse, WriteOutputTask, concurrentWorkflow, dagWorkflow, serialWorkflow };

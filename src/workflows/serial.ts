@@ -10,7 +10,7 @@ import { createNodeRegistry } from "../registry/nodeRegistryFactory.js";
 import { ProgramOptions, Stats, Task } from "../types.js";
 import { createErrorResult, createResult } from "../utils/result.js";
 import { friendly } from "../utils/utils.js";
-import { Keys } from "../utils/variables.constants.js";
+import { Keys } from "../utils/variables.js";
 import { WorkflowExecutable, WorkflowResult } from "./types.js";
 
 interface SerialWorkflow {
@@ -25,7 +25,7 @@ export const serialWorkflow: SerialWorkflow = (
   const prepare = async (context: { recorder?: Recorder }) => {
     const { recorder } = context;
     let tasks: Task[] = [];
-    if ("type" in first && first.type === "serial") {
+    if ("steps" in first) {
       const jobConfig = first as SerialJob;
       tasks = await configToTasks(jobConfig, { recorder });
     } else {
@@ -40,8 +40,9 @@ export const serialWorkflow: SerialWorkflow = (
     options?: ProgramOptions;
     stats?: Stats;
     recorder?: Recorder;
+    name?: string;
   }): Promise<WorkflowResult> => {
-    const { provider, variables, options, stats, recorder } = context;
+    const { provider, variables, options, stats, recorder, name } = context;
     const id = crypto.randomUUID();
     const actionRegistry = createNodeRegistry();
 
@@ -49,7 +50,7 @@ export const serialWorkflow: SerialWorkflow = (
       type: "task",
       id,
       status: TaskStatus.Running,
-      message: `[${friendly(id)}] Starting job`,
+      message: `[${friendly(id, name)}] Starting job`,
     });
 
     try {
@@ -61,7 +62,7 @@ export const serialWorkflow: SerialWorkflow = (
           type: "task",
           id,
           status: TaskStatus.Running,
-          message: `[${friendly(id)}] Processing step ${index + 1}: ${task.type}`,
+          message: `[${friendly(id, name)}] Processing step ${index + 1}: ${task.type}`,
         });
 
         try {
@@ -75,7 +76,6 @@ export const serialWorkflow: SerialWorkflow = (
             recorder,
           });
         } catch (error) {
-          // This is to provide context on a specific step error
           const taskError =
             error instanceof AxleError
               ? error
@@ -94,7 +94,7 @@ export const serialWorkflow: SerialWorkflow = (
         type: "task",
         status: TaskStatus.Success,
         id,
-        message: `[${friendly(id)}] Completed ${tasks.length} steps`,
+        message: `[${friendly(id, name)}] Completed ${tasks.length} steps`,
       });
 
       return createResult(variables[Keys.LastResult], stats);
@@ -111,7 +111,7 @@ export const serialWorkflow: SerialWorkflow = (
         type: "task",
         status: TaskStatus.Fail,
         id,
-        message: `[${friendly(id)}] Failed: ${axleError.message}`,
+        message: `[${friendly(id, name)}] Failed: ${axleError.message}`,
       });
       recorder?.error.log(axleError);
 

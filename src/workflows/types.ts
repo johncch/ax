@@ -2,6 +2,7 @@ import { AIProvider } from "../ai/types.js";
 import { AxleError } from "../errors/AxleError.js";
 import { Recorder } from "../recorder/recorder.js";
 import { ProgramOptions, Stats, Task } from "../types.js";
+import { Planner } from "./planners/types.js";
 
 export interface Run {
   tasks: Task[];
@@ -31,5 +32,44 @@ export interface WorkflowExecutable {
     options?: ProgramOptions;
     stats?: Stats;
     recorder?: Recorder;
+    name?: string;
   }) => Promise<WorkflowResult>;
+}
+
+/* DAG types */
+export interface DAGNodeDefinition {
+  task: Task | Task[];
+  dependsOn?: string | string[];
+}
+
+export interface DAGConcurrentNodeDefinition {
+  planner: Planner;
+  tasks: Task[];
+  dependsOn?: string | string[];
+}
+
+export interface DAGDefinition {
+  [nodeName: string]:
+    | Task
+    | Task[]
+    | DAGNodeDefinition
+    | DAGConcurrentNodeDefinition;
+}
+
+export interface DAGNode {
+  id: string;
+  tasks: Task[];
+  dependencies: string[];
+  planner?: Planner;
+  executionType: "serial" | "concurrent";
+}
+
+export interface DAGExecutionPlan {
+  stages: string[][];
+  nodes: Map<string, DAGNode>;
+}
+
+export interface DAGWorkflowOptions {
+  continueOnError?: boolean;
+  maxConcurrency?: number;
 }

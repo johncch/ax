@@ -1,7 +1,6 @@
 import { Command } from "@commander-js/extra-typings";
 import { getProvider } from "./ai/index.js";
 import { AIProvider } from "./ai/types.js";
-import { isBatchJob } from "./cli/configs/job.js";
 import { getJobConfig, getServiceConfig } from "./cli/configs/loaders.js";
 import { JobConfig, ServiceConfig } from "./cli/configs/types.js";
 import { ConsoleWriter } from "./recorder/consoleWriter.js";
@@ -10,8 +9,7 @@ import { Recorder } from "./recorder/recorder.js";
 import { LogLevel } from "./recorder/types.js";
 import { getToolRegistry } from "./tools/index.js";
 import { Stats } from "./types.js";
-import { concurrentWorkflow } from "./workflows/concurrent.js";
-import { serialWorkflow } from "./workflows/serial.js";
+import { dagWorkflow } from "./workflows/dag.js";
 
 const program = new Command()
   .name("axle")
@@ -134,30 +132,17 @@ if (options.dryRun) {
 }
 
 const stats: Stats = { in: 0, out: 0 };
-for (const [jobName, job] of Object.entries(jobConfig.jobs)) {
-  recorder.info?.heading.log(`Executing "${jobName}"`);
-  let response: any;
-  if (isBatchJob(job)) {
-    response = await concurrentWorkflow(job).execute({
-      provider,
-      variables,
-      options,
-      stats,
-      recorder,
-    });
-  } else {
-    response = await serialWorkflow(job).execute({
-      provider,
-      variables,
-      options,
-      stats,
-      recorder,
-    });
-  }
-  if (response) {
-    recorder.info?.heading.log("Response");
-    recorder.info.log(response);
-  }
+const response = await dagWorkflow(jobConfig.jobs).execute({
+  provider,
+  variables,
+  options,
+  stats,
+  recorder,
+});
+
+if (response) {
+  recorder.info?.heading.log("Response");
+  recorder.info.log(response);
 }
 
 recorder.info?.heading.log("Usage");

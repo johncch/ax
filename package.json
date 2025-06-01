@@ -1,6 +1,6 @@
 {
   "name": "axle",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "axle is a command line tool for running workflows against LLM APIs.",
   "type": "module",
   "main": "./dist/index.js",

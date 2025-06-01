@@ -5,6 +5,7 @@ import {
   OllamaProviderConfig,
   OpenAIProviderConfig,
 } from "../../ai/types.js";
+import { ResTypeStrings } from "../../core/types.js";
 
 export interface ValidationError {
   value: string;
@@ -27,7 +28,7 @@ export type ServiceConfig = Partial<AIProviderConfig> & ToolProviderConfig;
 
 export interface JobConfig {
   using: AIProviderUse;
-  jobs: Record<string, Job>;
+  jobs: DAGJob;
 }
 
 export type AIProviderUse =
@@ -36,16 +37,18 @@ export type AIProviderUse =
   | ({ engine: "openai" } & Partial<OpenAIProviderConfig>)
   | ({ engine: "google" } & Partial<GoogleAIProviderConfig>);
 
+export interface DAGJob {
+  [name: string]: Job & { dependsOn?: string | string[] };
+}
+
 export type Job = SerialJob | BatchJob;
 
 export interface SerialJob {
-  type: "serial";
   tools?: string[];
   steps: Step[];
 }
 
 export interface BatchJob {
-  type: "batch";
   tools?: string[];
   batch: BatchOptions[];
   steps: Step[];
@@ -73,6 +76,7 @@ export interface ChatStep extends StepBase {
   uses: "chat";
   system?: string;
   message: string;
+  output?: Record<string, ResTypeStrings>;
   replace?: Replace[];
   tools?: string[];
 }
@@ -80,6 +84,7 @@ export interface ChatStep extends StepBase {
 export interface WriteToDiskStep extends StepBase {
   uses: "write-to-disk";
   output: string;
+  keys: string | string[];
 }
 
 export interface Replace {

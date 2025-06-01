@@ -7,7 +7,6 @@ import {
 } from "../../utils/file.js";
 import { replaceVariables } from "../../utils/replace.js";
 import { FilePathInfo } from "../../utils/types.js";
-import { Keys } from "../../utils/variables.constants.js";
 import { WriteToDiskTask } from "./task.js";
 
 export class WriteToDiskTaskHandler implements TaskHandler<WriteToDiskTask> {
@@ -30,23 +29,42 @@ export class WriteToDiskTaskHandler implements TaskHandler<WriteToDiskTask> {
   }): Promise<void> {
     const { task, variables, options = {}, recorder } = params;
 
-    if (options.dryRun) {
-      recorder?.debug?.log("Dry run: no action was taken");
+    const output = task.output;
+
+    const keys = task.keys ?? [];
+
+    if (options?.warnUnused) {
+      const unusedKeys = keys.filter((key) => !(key in variables));
+      if (unusedKeys.length > 0) {
+        recorder?.warn?.log(
+          `[Write To Disk] The following keys were not found in the variables: ${unusedKeys.join(", ")}`,
+        );
+      }
+    }
+
+    let content = "";
+    if (keys.length === 1) {
+      content = variables[keys[0]] ?? "<not found>";
+    } else {
+      content = keys
+        .map((key) => `[${key}]:\n${variables[key] ?? "<not found>"}\n`)
+        .join("\n");
+    }
+
+    if (options?.dryRun) {
+      recorder?.info?.log(`[Dry run] Write to Disk is not executed.`);
       return;
     }
-    const output = task.output;
-    const content = variables[Keys.Latest];
-    if (typeof content === "string") {
-      let filepath = "";
-      if (output.includes("*")) {
-        filepath = replaceFilePattern(output, variables.file as FilePathInfo);
-      } else {
-        filepath = replaceVariables(output, variables, "{}");
-      }
-      await writeFileWithDirectories({
-        filePath: filepath,
-        content,
-      });
+
+    let filepath = "";
+    if (output.includes("*")) {
+      filepath = replaceFilePattern(output, variables.file as FilePathInfo);
+    } else {
+      filepath = replaceVariables(output, variables, "{}");
     }
+    await writeFileWithDirectories({
+      filePath: filepath,
+      content,
+    });
   }
 }

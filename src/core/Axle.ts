@@ -2,9 +2,15 @@ import { getProvider } from "../ai/index.js";
 import { AIProvider, AIProviderConfig } from "../ai/types.js";
 import { AxleError } from "../errors/index.js";
 import { Recorder } from "../recorder/recorder.js";
+import { RecorderWriter } from "../recorder/types.js";
 import { Task } from "../types.js";
+import { dagWorkflow } from "../workflows/dag.js";
 import { serialWorkflow } from "../workflows/serial.js";
-import { WorkflowResult } from "../workflows/types.js";
+import {
+  DAGDefinition,
+  DAGWorkflowOptions,
+  WorkflowResult,
+} from "../workflows/types.js";
 
 export class Axle {
   private provider: AIProvider;
@@ -33,6 +39,10 @@ export class Axle {
     }
   }
 
+  addWriter(writer: RecorderWriter) {
+    this.recorder.subscribe(writer);
+  }
+
   /**
    * The execute function takes in a list of Tasks
    * @param tasks
@@ -54,6 +64,40 @@ export class Axle {
         error instanceof AxleError
           ? error
           : new AxleError("Execution failed", {
+              cause: error instanceof Error ? error : new Error(String(error)),
+            });
+      this.recorder.error?.log(axleError);
+      return { response: null, error: axleError, success: false };
+    }
+  }
+
+  /**
+   * Execute a DAG workflow
+   * @param dagDefinition - The DAG definition object
+   * @param variables - Additional variables to pass to the workflow
+   * @param options - DAG execution options
+   * @returns Promise<WorkflowResult>
+   */
+  async executeDAG(
+    dagDefinition: DAGDefinition,
+    variables: Record<string, any> = {},
+    options?: DAGWorkflowOptions,
+  ): Promise<WorkflowResult> {
+    try {
+      const workflow = dagWorkflow(dagDefinition, options);
+      const result = await workflow.execute({
+        provider: this.provider,
+        variables: { ...this.variables, ...variables },
+        stats: this.stats,
+        recorder: this.recorder,
+      });
+
+      return result;
+    } catch (error) {
+      const axleError =
+        error instanceof AxleError
+          ? error
+          : new AxleError("DAG execution failed", {
               cause: error instanceof Error ? error : new Error(String(error)),
             });
       this.recorder.error?.log(axleError);

@@ -1,9 +1,11 @@
 import { AbstractInstruct, DEFAULT_OUTPUT_VALUE } from "./AbstractInstruct.js";
 import { ResTypes, ResTypeStrings } from "./types.js";
 
-type DefaultresFormatType = { response: ResTypes.String };
+type DefaultResFormatType = { response: ResTypes.String };
 
-export class Instruct<O extends Record<string, ResTypeStrings>> extends AbstractInstruct<O> {
+export class Instruct<
+  O extends Record<string, ResTypeStrings>,
+> extends AbstractInstruct<O> {
   private constructor(prompt: string, resFormat: O) {
     super(prompt, resFormat);
   }
@@ -12,18 +14,18 @@ export class Instruct<O extends Record<string, ResTypeStrings>> extends Abstract
     prompt: string,
     resFormat: NewO,
   ): Instruct<NewO>;
-  public static with(prompt: string): Instruct<DefaultresFormatType>;
+  public static with(prompt: string): Instruct<DefaultResFormatType>;
   public static with<NewO extends Record<string, ResTypeStrings>>(
     prompt: string,
     resFormat?: NewO,
-  ): Instruct<NewO | DefaultresFormatType> {
+  ): Instruct<NewO | DefaultResFormatType> {
     if (resFormat) {
       return new Instruct(prompt, resFormat);
     } else {
       return new Instruct(
         prompt,
         DEFAULT_OUTPUT_VALUE,
-      ) as Instruct<DefaultresFormatType>;
+      ) as Instruct<DefaultResFormatType>;
     }
   }
 }

@@ -10,18 +10,18 @@ import {
   createResult,
   isErrorResult,
 } from "../utils/result.js";
-import { FileRunPlanner } from "./planners/fileRunPlanner.js";
+import { friendly } from "../utils/utils.js";
 import { Planner } from "./planners/types.js";
 import { serialWorkflow } from "./serial.js";
 import { Run, WorkflowExecutable, WorkflowResult } from "./types.js";
 
 interface ConcurrentWorkflow {
   (jobConfig: BatchJob): WorkflowExecutable;
-  (batch: FileRunPlanner, ...instructions: Task[]): WorkflowExecutable;
+  (planner: Planner, ...instructions: Task[]): WorkflowExecutable;
 }
 
 export const concurrentWorkflow: ConcurrentWorkflow = (
-  first: BatchJob | FileRunPlanner,
+  first: BatchJob | Planner,
   ...rest: Task[]
 ) => {
   const prepare = async (context: {
@@ -30,7 +30,7 @@ export const concurrentWorkflow: ConcurrentWorkflow = (
     const { recorder } = context;
     let tasks: Task[] = [];
     let planner: Planner = null;
-    if ("type" in first && first.type === "batch") {
+    if ("batch" in first) {
       const jobConfig = first as BatchJob;
       planner = await configToPlanner(jobConfig, { recorder });
       tasks = await configToTasks(jobConfig, { recorder });
@@ -47,8 +47,9 @@ export const concurrentWorkflow: ConcurrentWorkflow = (
     options?: ProgramOptions;
     stats?: Stats;
     recorder?: Recorder;
+    name?: string;
   }): Promise<WorkflowResult> => {
-    const { provider, variables, options, stats, recorder } = context;
+    const { provider, variables, options, stats, recorder, name } = context;
 
     const id = crypto.randomUUID();
 
@@ -67,10 +68,10 @@ export const concurrentWorkflow: ConcurrentWorkflow = (
         type: "task",
         status: TaskStatus.Running,
         id,
-        message: `Working on 0/${runs.length}`,
+        message: `[${friendly(id, "CRW")}] Working on 0/${runs.length}`,
       });
 
-      const executeRun = async (run: Run) => {
+      const executeRun = async (run: Run, index: number) => {
         try {
           const result = await serialWorkflow(...run.tasks).execute({
             provider: provider,
@@ -78,6 +79,7 @@ export const concurrentWorkflow: ConcurrentWorkflow = (
             options,
             stats,
             recorder,
+            name: `${name}-${index}`,
           });
           return result;
         } catch (e) {
@@ -95,7 +97,7 @@ export const concurrentWorkflow: ConcurrentWorkflow = (
             type: "task",
             status: TaskStatus.Running,
             id,
-            message: `Working on ${completed}/${runs.length}`,
+            message: `[${friendly(id, "CRW")}] Working on ${completed}/${runs.length}`,
           });
         }
       };
@@ -116,7 +118,7 @@ export const concurrentWorkflow: ConcurrentWorkflow = (
         type: "task",
         status: hasErrors ? TaskStatus.PartialSuccess : TaskStatus.Success,
         id,
-        message: `All jobs (${runs.length}) completed${hasErrors ? " with some errors" : ""}`,
+        message: `[${friendly(id, "CRW")}] All jobs (${runs.length}) completed${hasErrors ? " with some errors" : ""}`,
       });
 
       // Process all results, including those with errors

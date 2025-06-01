@@ -12,7 +12,7 @@ import { Recorder } from "../../recorder/recorder.js";
 import { TaskHandler } from "../../registry/taskHandler.js";
 import { ToolExecutable, ToolSchema } from "../../tools/types.js";
 import { ProgramOptions, Stats } from "../../types.js";
-import { Keys } from "../../utils/variables.constants.js";
+import { Keys, setResultsIntoVariables } from "../../utils/variables.js";
 
 export class ChatTaskHandler<O extends Record<string, ResTypeStrings>>
   implements TaskHandler<Instruct<O>>
@@ -68,7 +68,6 @@ export async function executeChatAction<
     chat.setToolSchemas(toolSchemas);
   }
 
-  // Execute
   if (options?.dryRun) {
     recorder?.debug?.log(chat);
     return { action: "complete" };
@@ -93,11 +92,8 @@ export async function executeChatAction<
             const content = response.message.content;
             chat.addAssistant(content);
             const result = instruct.finalize(content);
-            for (const [key, value] of Object.entries(result)) {
-              variables[key] = value;
-            }
+            setResultsIntoVariables(result, variables, { options, recorder });
             variables[Keys.LastResult] = result;
-            variables[Keys.Latest] = response.message.content;
           }
           continueProcessing = false;
           return { action: "continue" };
@@ -111,7 +107,6 @@ export async function executeChatAction<
           let message = response.message as ChatItemAssistant;
           if (response.message) {
             chat.addAssistant(message.content, message.toolCalls);
-            variables[Keys.Latest] = response.message.content;
           }
 
           if (message.toolCalls && message.toolCalls.length > 0) {

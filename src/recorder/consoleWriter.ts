@@ -35,7 +35,7 @@ export class ConsoleWriter implements RecorderWriter {
   private isRendering = false;
   private inline = true;
 
-  constructor(options: { truncate?: number; inline?: boolean }) {
+  constructor(options: { truncate?: number; inline?: boolean } = {}) {
     this.truncate = options.truncate ?? 0;
     this.inline = options.inline ?? true;
   }
@@ -44,7 +44,10 @@ export class ConsoleWriter implements RecorderWriter {
     if (this.intervalId !== null) return;
 
     this.intervalId = setInterval(() => {
-      if (this.tasks.size > 0) {
+      const hasRunningTasks = [...this.tasks.values()].some(
+        (task) => task.status === TaskStatus.Running,
+      );
+      if (hasRunningTasks) {
         this.renderTasks();
       }
     }, this.spinnerInterval);
@@ -68,20 +71,30 @@ export class ConsoleWriter implements RecorderWriter {
       readline.clearScreenDown(process.stdout);
     }
 
-    // Once tasks are completed, we do one "final print" and then
-    // we remove them from the running, updated list.
-    const completedTasks = [...this.tasks.values()].filter(
+    // Check if all tasks are completed
+    const allTasks = [...this.tasks.values()];
+    const runningTasks = allTasks.filter(
+      (task) => task.status === TaskStatus.Running,
+    );
+    const completedTasks = allTasks.filter(
       (task) =>
         task.status === TaskStatus.Success || task.status === TaskStatus.Fail,
     );
-    for (const tasks of completedTasks) {
-      const { id, text, status } = tasks;
-      if (status === TaskStatus.Success) {
-        console.log(chalk.green(icons.success), text);
-      } else if (status === TaskStatus.Fail) {
-        console.log(chalk.red(icons.fail), text);
+
+    // If all tasks are completed, remove them from the map (they've been displayed in live output)
+    if (runningTasks.length === 0 && completedTasks.length > 0) {
+      let output = "";
+      for (const task of completedTasks) {
+        if (task.status === TaskStatus.Success) {
+          const icon = chalk.green(icons.success);
+          output += `${icon} ${task.text}\n`;
+        } else if (task.status === TaskStatus.Fail) {
+          const icon = chalk.red(icons.fail);
+          output += `${icon} ${task.text}\n`;
+        }
+        this.tasks.delete(task.id);
       }
-      this.tasks.delete(id);
+      console.log(output);
     }
 
     // Render entries
@@ -95,12 +108,20 @@ export class ConsoleWriter implements RecorderWriter {
     }
     this.entries = [];
 
-    // Prepare new render
+    // Prepare new render - show all tasks with appropriate icons
     let output = "";
     for (const task of this.tasks.values()) {
-      const icon = chalk.cyan(icons.spinning[task.frameIndex]);
-      task.frameIndex = (task.frameIndex + 1) % icons.spinning.length;
-      output += `${icon} ${task.text}\n`;
+      if (task.status === TaskStatus.Running) {
+        const icon = chalk.cyan(icons.spinning[task.frameIndex]);
+        task.frameIndex = (task.frameIndex + 1) % icons.spinning.length;
+        output += `${icon} ${task.text}\n`;
+      } else if (task.status === TaskStatus.Success) {
+        const icon = chalk.green(icons.success);
+        output += `${icon} ${task.text}\n`;
+      } else if (task.status === TaskStatus.Fail) {
+        const icon = chalk.red(icons.fail);
+        output += `${icon} ${task.text}\n`;
+      }
     }
 
     this.lastRender = output;
@@ -134,12 +155,12 @@ export class ConsoleWriter implements RecorderWriter {
 
     // Check if any task has a spinner status and start the spinner if needed
     this.renderTasks();
-    const hasSpinningTask = [...this.tasks.values()].some(
+    const hasRunningTask = [...this.tasks.values()].some(
       (task) => task.status === TaskStatus.Running,
     );
-    if (hasSpinningTask && this.intervalId === null) {
+    if (hasRunningTask && this.intervalId === null) {
       this.startSpinner();
-    } else if (!hasSpinningTask && this.intervalId !== null) {
+    } else if (!hasRunningTask && this.intervalId !== null) {
       this.stopSpinner();
     }
   }

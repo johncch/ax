@@ -18,7 +18,12 @@ export const chatConverter: StepToClassConverter<
     const { recorder, toolNames } = context;
     const { message, system, replace } = step;
 
-    const instruct = Instruct.with(message);
+    let instruct: Instruct<Record<string, ResTypeStrings>>;
+    if (step.output) {
+      instruct = Instruct.with(message, step.output);
+    } else {
+      instruct = Instruct.with(message);
+    }
     if (system) {
       instruct.system = system;
     }

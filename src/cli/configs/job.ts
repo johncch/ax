@@ -1,7 +1,9 @@
+import { ResTypeStrings } from "../../core/types.js";
 import {
   AIProviderUse,
   BatchJob,
   ChatStep,
+  DAGJob,
   Job,
   JobConfig,
   Replace,
@@ -31,12 +33,9 @@ export function isJobConfig(
     return false;
   }
 
-  // Check that all jobs are valid Job objects
-  for (const [key, value] of Object.entries(obj.jobs)) {
-    if (!isJob(value, errVal)) {
-      if (errVal) errVal.value = `Invalid job '${key}': ${errVal?.value}`;
-      return false;
-    }
+  if (!isDAGJob(obj.jobs, errVal)) {
+    if (errVal) errVal.value = `Invalid 'jobs' property: ${errVal?.value}`;
+    return false;
   }
 
   return true;
@@ -98,19 +97,65 @@ export function isUsing(
   return true;
 }
 
+export function isDAGJob(obj: any, errVal?: ValidationError): obj is DAGJob {
+  for (const [key, value] of Object.entries(obj)) {
+    if (!isDAGJobValue(value, errVal)) {
+      if (errVal) errVal.value = `Invalid job '${key}': ${errVal?.value}`;
+      return false;
+    }
+  }
+  return true;
+}
+
+export function isDAGJobValue(
+  obj: any,
+  errVal?: ValidationError,
+): obj is Job & { dependsOn?: string | string[] } {
+  if (!obj || typeof obj !== "object") {
+    if (errVal) errVal.value = "Not an object";
+    return false;
+  }
+
+  // Validate the base job
+  if (!isJob(obj, errVal)) {
+    return false;
+  }
+
+  // Validate dependsOn if provided
+  if ("dependsOn" in obj && obj.dependsOn !== undefined) {
+    const dependsOn = (obj as any).dependsOn;
+    if (typeof dependsOn === "string") {
+      // Single dependency is valid
+    } else if (Array.isArray(dependsOn)) {
+      for (let i = 0; i < dependsOn.length; i++) {
+        if (typeof dependsOn[i] !== "string") {
+          if (errVal)
+            errVal.value = `Dependency at index ${i} must be a string`;
+          return false;
+        }
+      }
+    } else {
+      if (errVal)
+        errVal.value =
+          "Property 'dependsOn' must be a string or array of strings";
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export function isJob(obj: any, errVal?: ValidationError): obj is Job {
   if (!obj || typeof obj !== "object") {
     if (errVal) errVal.value = "Not an object";
     return false;
   }
 
-  if (obj.type === "serial") {
-    return isSerialJob(obj, errVal);
-  } else if (obj.type === "batch") {
+  // Distinguish between SerialJob and BatchJob by presence of batch property
+  if ("batch" in obj) {
     return isBatchJob(obj, errVal);
   } else {
-    if (errVal) errVal.value = "Job type must be 'serial' or 'batch'";
-    return false;
+    return isSerialJob(obj, errVal);
   }
 }
 
@@ -123,8 +168,9 @@ export function isSerialJob(
     return false;
   }
 
-  if (obj.type !== "serial") {
-    if (errVal) errVal.value = "Job type must be 'serial'";
+  // SerialJob should not have a batch property
+  if ("batch" in obj) {
+    if (errVal) errVal.value = "Serial job should not have a batch property";
     return false;
   }
 
@@ -168,11 +214,6 @@ export function isBatchJob(
     return false;
   }
 
-  if (obj.type !== "batch") {
-    if (errVal) errVal.value = "Job type must be 'batch'";
-    return false;
-  }
-
   // Check tools if provided
   if (obj.tools !== undefined) {
     if (!Array.isArray(obj.tools)) {
@@ -188,7 +229,7 @@ export function isBatchJob(
     }
   }
 
-  // Check batch
+  // Check batch - this is required for BatchJob
   if (!Array.isArray(obj.batch)) {
     if (errVal) errVal.value = "Property 'batch' must be an array";
     return false;
@@ -314,6 +355,38 @@ export function isChatStep(
   if (typeof obj.message !== "string") {
     if (errVal) errVal.value = "Property 'message' must be a string";
     return false;
+  }
+
+  // Check optional output property
+  if (obj.output !== undefined) {
+    if (
+      !obj.output ||
+      typeof obj.output !== "object" ||
+      Array.isArray(obj.output)
+    ) {
+      if (errVal) errVal.value = "Property 'output' must be an object";
+      return false;
+    }
+
+    // Validate output is Record<string, ResTypeStrings>
+    const validResTypes: ResTypeStrings[] = [
+      "string",
+      "string[]",
+      "number",
+      "boolean",
+    ];
+    for (const [key, value] of Object.entries(obj.output)) {
+      if (
+        typeof key !== "string" ||
+        typeof value !== "string" ||
+        !validResTypes.includes(value as ResTypeStrings)
+      ) {
+        if (errVal)
+          errVal.value =
+            "Property 'output' must be a Record<string, ResTypeStrings> where ResTypeStrings is 'string' | 'string[]' | 'number' | 'boolean'";
+        return false;
+      }
+    }
   }
 
   // Check system if provided
