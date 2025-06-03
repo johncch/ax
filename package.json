@@ -23,7 +23,8 @@
     "build-dev": "pkgroll --clean-dist",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "get-models": "node scripts/getModels.js",
-    "prompt-scenarios": "npx tsx ./scripts/prompt.scenarios.ts"
+    "prompt-scenarios": "npx tsx ./scripts/prompt.scenarios.ts",
+    "test-providers": "npx tsx ./scripts/testProviders.ts"
   },
   "author": "",
   "license": "ISC",
@@ -34,7 +35,7 @@
     "chalk": "^5.3.0",
     "commander": "^14",
     "glob": "^11.0.0",
-    "openai": "^4.55.7",
+    "openai": "^5.0.2",
     "serialize-error": "^12.0.0",
     "yaml": "^2.5.0"
   },
