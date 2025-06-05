@@ -5,8 +5,9 @@ export function replaceVariables(
 ): string {
   const pattern = placeholderStyle === "{{}}" ? /\{\{(.*?)\}\}/g : /\{(.*?)\}/g;
   input = input.replace(pattern, (match, group) => {
-    if (variables[group]) {
-      return variables[group];
+    if (Object.prototype.hasOwnProperty.call(variables, group)) {
+      const value = variables[group];
+      return value === undefined || value === null ? "" : String(value);
     }
     return match;
   });
