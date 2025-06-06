@@ -231,7 +231,7 @@ function body(
   values(level, data, options);
 }
 
-const deliminator = "    ";
+const delimiter = "    ";
 
 function values(
   level: LogLevel,
@@ -251,14 +251,14 @@ function values(
   }
   data.forEach((d) => {
     if (typeof d === "string") {
-      console.log(b(`${deliminator}${d}`));
+      console.log(b(`${delimiter}${d}`));
       return;
     }
     for (const [key, value] of Object.entries(d)) {
       let v = JSON.stringify(value, truncator(options.truncate), "\t");
       const printable = `${key}: ${v}`
         .split("\n")
-        .map((line) => deliminator + line)
+        .map((line) => delimiter + line)
         .join("\n");
       console.log(b(printable));
     }
