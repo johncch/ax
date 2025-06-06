@@ -21,7 +21,16 @@ export class OllamaProvider implements AIProvider {
     this.model = model;
   }
 
-  createChatCompletionRequest(chat: Chat): AIRequest {
+  createChatRequest(
+    chat: Chat,
+    context: { recorder?: Recorder } = {},
+  ): AIRequest {
+    const { recorder } = context;
+    if (chat.hasFiles()) {
+      recorder?.warn?.log(
+        `Ollama model ${this.model} multimodal support depends on the specific model. Ensure you're using a vision-capable model like llava.`,
+      );
+    }
     return new OllamaChatCompletionRequest(this.url, this.model, chat);
   }
 }
@@ -141,10 +150,32 @@ function prepareRequest(chat: Chat) {
           };
 
         default:
-          return {
-            role: msg.role,
-            content: msg.content,
-          };
+          if (typeof msg.content === "string") {
+            return {
+              role: msg.role,
+              content: msg.content,
+            };
+          } else {
+            let textContent = "";
+            const images: string[] = [];
+
+            for (const item of msg.content) {
+              if (item.type === "text") {
+                textContent += item.text;
+              } else if (item.type === "file") {
+                const file = item.file;
+                if (file.type === "image") {
+                  images.push(file.base64);
+                }
+              }
+            }
+
+            return {
+              role: msg.role,
+              content: textContent,
+              ...(images.length > 0 && { images }),
+            };
+          }
       }
     })
     .flat(Infinity);

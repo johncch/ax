@@ -4,6 +4,7 @@ import { AxleError } from "../errors/index.js";
 import { Recorder } from "../recorder/recorder.js";
 import { RecorderWriter } from "../recorder/types.js";
 import { Task } from "../types.js";
+import { loadFileAsBase64, FileInfo } from "../utils/file.js";
 import { dagWorkflow } from "../workflows/dag.js";
 import { serialWorkflow } from "../workflows/serial.js";
 import {
@@ -107,5 +108,14 @@ export class Axle {
 
   get logs() {
     return this.recorder.getLogs();
+  }
+
+  /**
+   * Load a file and encode it to base64 for use with multimodal models
+   * @param filePath - Path to the image or PDF file
+   * @returns FileInfo object with base64 data and metadata
+   */
+  static async loadFile(filePath: string): Promise<FileInfo> {
+    return loadFileAsBase64(filePath);
   }
 }

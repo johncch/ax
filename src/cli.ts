@@ -1,4 +1,5 @@
 import { Command } from "@commander-js/extra-typings";
+import pkg from "../package.json";
 import { getProvider } from "./ai/index.js";
 import { AIProvider } from "./ai/types.js";
 import { getJobConfig, getServiceConfig } from "./cli/configs/loaders.js";
@@ -13,8 +14,8 @@ import { dagWorkflow } from "./workflows/dag.js";
 
 const program = new Command()
   .name("axle")
-  .description("A CLI tool for running AI jobs")
-  .version("1.0.0")
+  .description("Axle is a CLI tool for running AI workflows")
+  .version(pkg.version)
   .option(
     "--dry-run",
     "Run the application without executing against the AI providers",
@@ -36,7 +37,6 @@ const program = new Command()
 program.parse(process.argv);
 const options = program.opts();
 
-// Parse additional arguments
 const variables: Record<string, string> = {};
 if (options.args) {
   options.args.forEach((arg: string) => {
@@ -86,19 +86,15 @@ if (options.debug) {
 let serviceConfig: ServiceConfig;
 let jobConfig: JobConfig;
 try {
-  serviceConfig = await getServiceConfig({
-    configPath: options.config ?? null,
-    options,
+  serviceConfig = await getServiceConfig(options.config ?? null, {
     recorder,
   });
-  jobConfig = await getJobConfig({
-    path: options.job ?? null,
-    options,
+  jobConfig = await getJobConfig(options.job ?? null, {
     recorder,
   });
 } catch (e) {
   recorder.error.log(e.message);
-  recorder.error.log(e.stack);
+  recorder.debug?.log(e.stack);
   await recorder.shutdown();
   program.outputHelp();
   process.exit(1);

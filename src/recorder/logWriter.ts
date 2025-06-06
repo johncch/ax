@@ -1,12 +1,14 @@
 import { access, appendFile, mkdir, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { LogLevel, RecorderEntry, RecorderWriter } from "./types.js";
 
-const DIR = "./logs/";
+const LOCAL_DIR = "./logs/";
+const AXLE_LOG_DIR = "~/.axle/logs/";
 
 export class LogWriter implements RecorderWriter {
   private time: string;
   private initialized = false;
-  // Track all pending write operations
+  private logDir: string = LOCAL_DIR;
   private pendingWrites: Promise<void>[] = [];
 
   constructor() {
@@ -14,7 +16,7 @@ export class LogWriter implements RecorderWriter {
   }
 
   get filename(): string {
-    return `${DIR}${this.time}.log`;
+    return `${this.logDir}${this.time}.log`;
   }
 
   /**
@@ -22,9 +24,17 @@ export class LogWriter implements RecorderWriter {
    */
   async initialize(): Promise<void> {
     try {
-      await access(DIR);
+      await access(LOCAL_DIR);
+      this.logDir = LOCAL_DIR;
     } catch (err) {
-      await mkdir(DIR);
+      const axleDir = AXLE_LOG_DIR.replace("~", homedir());
+      try {
+        await access(axleDir);
+        this.logDir = axleDir;
+      } catch (axleErr) {
+        await mkdir(axleDir, { recursive: true });
+        this.logDir = axleDir;
+      }
     }
 
     const initPromise = writeFile(

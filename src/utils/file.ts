@@ -1,6 +1,6 @@
 import { glob } from "glob";
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { access, mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { dirname, extname, resolve } from "node:path";
 import { Recorder } from "../recorder/recorder.js";
 import { FilePathInfo, LoadFileResults } from "./types.js";
 
@@ -140,4 +140,99 @@ export async function writeFileWithDirectories({
 }) {
   await ensureDirectoryExistence(filePath);
   await writeFile(filePath, content);
+}
+
+const SUPPORTED_IMAGE_TYPES = [
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".gif",
+  ".webp",
+  ".bmp",
+  ".tiff",
+];
+const SUPPORTED_DOCUMENT_TYPES = [".pdf"];
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
+
+export interface FileInfo {
+  path: string;
+  base64: string;
+  mimeType: string;
+  size: number;
+  name: string;
+  type: "image" | "document";
+}
+
+/**
+ * Load a file and encode it to base64 with validation
+ * @param filePath - Path to the file
+ * @returns FileInfo object with base64 data and metadata
+ */
+export async function loadFileAsBase64(filePath: string): Promise<FileInfo> {
+  const resolvedPath = resolve(filePath);
+
+  try {
+    await access(resolvedPath);
+  } catch {
+    throw new Error(`File not found: ${filePath}`);
+  }
+
+  const stats = await stat(resolvedPath);
+
+  if (stats.size > MAX_FILE_SIZE) {
+    throw new Error(
+      `File too large: ${stats.size} bytes. Maximum allowed: ${MAX_FILE_SIZE} bytes`,
+    );
+  }
+
+  const ext = extname(resolvedPath).toLowerCase();
+
+  let type: "image" | "document";
+  let mimeType: string;
+
+  if (SUPPORTED_IMAGE_TYPES.includes(ext)) {
+    type = "image";
+    switch (ext) {
+      case ".jpg":
+      case ".jpeg":
+        mimeType = "image/jpeg";
+        break;
+      case ".png":
+        mimeType = "image/png";
+        break;
+      case ".gif":
+        mimeType = "image/gif";
+        break;
+      case ".webp":
+        mimeType = "image/webp";
+        break;
+      case ".bmp":
+        mimeType = "image/bmp";
+        break;
+      case ".tiff":
+        mimeType = "image/tiff";
+        break;
+      default:
+        mimeType = "image/jpeg";
+    }
+  } else if (SUPPORTED_DOCUMENT_TYPES.includes(ext)) {
+    type = "document";
+    mimeType = "application/pdf";
+  } else {
+    throw new Error(
+      `Unsupported file type: ${ext}. Supported types: ${[...SUPPORTED_IMAGE_TYPES, ...SUPPORTED_DOCUMENT_TYPES].join(", ")}`,
+    );
+  }
+
+  const fileBuffer = await readFile(resolvedPath);
+  const base64 = fileBuffer.toString("base64");
+
+  return {
+    path: resolvedPath,
+    base64,
+    mimeType,
+    size: stats.size,
+    name: resolvedPath.split("/").pop() || "",
+    type,
+  };
 }

@@ -4,6 +4,8 @@ import {
   BatchJob,
   ChatStep,
   DAGJob,
+  DocumentReference,
+  ImageReference,
   Job,
   JobConfig,
   Replace,
@@ -56,11 +58,11 @@ export function isUsing(
   }
 
   // The engine property should be a valid key for AIProviderConfig
-  const validProviders = ["openai", "anthropic", "ollama", "google"];
+  const validProviders = ["openai", "anthropic", "ollama", "googleai"];
   if (!validProviders.includes(obj.engine)) {
     if (errVal)
       errVal.value =
-        "Invalid provider type. Must be 'openai', 'anthropic', 'google', or 'ollama'";
+        "Invalid provider type. Must be 'openai', 'anthropic', 'googleai', or 'ollama'";
     return false;
   }
 
@@ -78,7 +80,7 @@ export function isUsing(
         return false;
       }
       break;
-    case "google":
+    case "googleai":
     case "anthropic":
     case "openai":
       // Optional api-key property
@@ -426,6 +428,38 @@ export function isChatStep(
     }
   }
 
+  // Check images if provided
+  if (obj.images !== undefined) {
+    if (!Array.isArray(obj.images)) {
+      if (errVal) errVal.value = "Property 'images' must be an array";
+      return false;
+    }
+
+    for (let i = 0; i < obj.images.length; i++) {
+      if (!isImageReference(obj.images[i], errVal)) {
+        if (errVal)
+          errVal.value = `Invalid image at index ${i}: ${errVal?.value}`;
+        return false;
+      }
+    }
+  }
+
+  // Check documents if provided
+  if (obj.documents !== undefined) {
+    if (!Array.isArray(obj.documents)) {
+      if (errVal) errVal.value = "Property 'documents' must be an array";
+      return false;
+    }
+
+    for (let i = 0; i < obj.documents.length; i++) {
+      if (!isDocumentReference(obj.documents[i], errVal)) {
+        if (errVal)
+          errVal.value = `Invalid document at index ${i}: ${errVal?.value}`;
+        return false;
+      }
+    }
+  }
+
   return true;
 }
 
@@ -480,6 +514,40 @@ export function isReplace(obj: any, errVal?: ValidationError): obj is Replace {
         return false;
       }
     }
+  }
+
+  return true;
+}
+
+export function isImageReference(
+  obj: any,
+  errVal?: ValidationError,
+): obj is ImageReference {
+  if (!obj || typeof obj !== "object") {
+    if (errVal) errVal.value = "Not an object";
+    return false;
+  }
+
+  if (typeof obj.file !== "string") {
+    if (errVal) errVal.value = "Property 'file' must be a string";
+    return false;
+  }
+
+  return true;
+}
+
+export function isDocumentReference(
+  obj: any,
+  errVal?: ValidationError,
+): obj is DocumentReference {
+  if (!obj || typeof obj !== "object") {
+    if (errVal) errVal.value = "Not an object";
+    return false;
+  }
+
+  if (typeof obj.file !== "string") {
+    if (errVal) errVal.value = "Property 'file' must be a string";
+    return false;
   }
 
   return true;

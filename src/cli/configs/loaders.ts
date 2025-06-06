@@ -1,6 +1,5 @@
 import YAML from "yaml";
 import { Recorder } from "../../recorder/recorder.js";
-import { ProgramOptions } from "../../types.js";
 import { loadFile } from "../../utils/file.js";
 import { isJobConfig } from "./job.js";
 import { isServiceConfig } from "./service.js";
@@ -9,15 +8,13 @@ import { JobConfig, ServiceConfig } from "./types.js";
 const DEFAULT_JOB_NAME = "ax.job";
 const DEFAULT_JOB_FORMATS = ["yaml", "yml", "json"];
 
-export async function getJobConfig({
-  path,
-  options,
-  recorder,
-}: {
-  path: string | null;
-  options: ProgramOptions;
-  recorder?: Recorder;
-}): Promise<JobConfig> {
+export async function getJobConfig(
+  path: string | null,
+  context: {
+    recorder?: Recorder;
+  },
+): Promise<JobConfig> {
+  const { recorder } = context;
   const { content, format } = await loadFile({
     path,
     defaults: {
@@ -48,15 +45,13 @@ export async function getJobConfig({
 const DEFAULT_CONFIG_NAME = "ax.config";
 const DEFAULT_CONFIG_FORMATS = ["yaml", "yml", "json"];
 
-export async function getServiceConfig({
-  configPath,
-  options,
-  recorder,
-}: {
-  configPath: string | null;
-  options: ProgramOptions;
-  recorder?: Recorder;
-}): Promise<ServiceConfig> {
+export async function getServiceConfig(
+  configPath: string | null,
+  context: {
+    recorder?: Recorder;
+  },
+): Promise<ServiceConfig> {
+  const { recorder } = context;
   const { content, format } = await loadFile({
     path: configPath,
     defaults: {

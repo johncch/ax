@@ -1,30 +1,22 @@
 import { Content, FinishReason, GoogleGenAI } from "@google/genai";
-import { Recorder } from "../recorder/recorder.js";
+import { Recorder } from "../../recorder/recorder.js";
 
 import {
   GenerateContentConfig,
   GenerateContentResponse,
   Type,
 } from "@google/genai";
-import { Chat } from "./chat.js";
+import { Chat } from "../chat.js";
 import {
   AIProvider,
   AIRequest,
   AIResponse,
   StopReason,
   ToolCall,
-} from "./types.js";
+} from "../types.js";
+import { Models, MULTIMODAL_MODELS } from "./models.js";
 
-/**
- * This is a convenience constant dictionary that exposes the
- * most common Google AI models that this library may use.
- */
-export const Models = {
-  GEMINI_2_5_PRO_PREVIEW: "gemini-2.5-pro-preview-05-06",
-  GEMINI_2_5_FLASH_PREVIEW: "gemini-2.5-flash-preview-05-20",
-} as const;
-
-const DEFAULT_MODEL = Models.GEMINI_2_5_FLASH_PREVIEW;
+const DEFAULT_MODEL = Models.GEMINI_2_5_FLASH_PREVIEW_05_20;
 
 export class GoogleAIProvider implements AIProvider {
   name = "GoogleAI";
@@ -36,7 +28,16 @@ export class GoogleAIProvider implements AIProvider {
     this.client = new GoogleGenAI({ apiKey: apiKey });
   }
 
-  createChatCompletionRequest(chat: Chat): AIRequest {
+  createChatRequest(
+    chat: Chat,
+    context: { recorder?: Recorder } = {},
+  ): AIRequest {
+    const { recorder } = context;
+    if (chat.hasFiles() && !MULTIMODAL_MODELS.includes(this.model as any)) {
+      recorder?.warn.log(
+        `Model ${this.model} does not support multimodal content. Use one of: ${MULTIMODAL_MODELS.join(", ")}`,
+      );
+    }
     return new GoogleAIChatRequest(this, chat);
   }
 }
@@ -81,13 +82,37 @@ class GoogleAIChatRequest implements AIRequest {
   private prepareRequest(chat: Chat) {
     let contents: string | Content[];
 
-    if (chat.messages.length === 1 && chat.messages[0].role == "user") {
-      // If there's only one user message, we can send it as a string
+    if (
+      chat.messages.length === 1 &&
+      chat.messages[0].role == "user" &&
+      typeof chat.messages[0].content === "string"
+    ) {
+      // If there's only one user message with string content, we can send it as a string
       contents = chat.messages[0].content;
     } else {
       contents = chat.messages.map((message) => {
         if (message.role === "user") {
-          return { role: "user", parts: [{ text: message.content }] };
+          if (typeof message.content === "string") {
+            return { role: "user", parts: [{ text: message.content }] };
+          } else {
+            const parts: any[] = [];
+            for (const item of message.content) {
+              if (item.type === "text") {
+                parts.push({ text: item.text });
+              } else if (item.type === "file") {
+                const file = item.file;
+                if (file.type === "image" || file.type === "document") {
+                  parts.push({
+                    inlineData: {
+                      mimeType: file.mimeType,
+                      data: file.base64,
+                    },
+                  });
+                }
+              }
+            }
+            return { role: "user", parts };
+          }
         } else if (message.role === "assistant") {
           const results: Content = {
             role: "assistant",

@@ -1,15 +1,15 @@
 import { AxleError } from "../errors/AxleError.js";
-import { AnthropicProvider } from "./anthropic.js";
-import { GoogleAIProvider } from "./google.js";
+import { AnthropicProvider } from "./anthropic/index.js";
+import { GoogleAIProvider } from "./googleai/index.js";
 import { OllamaProvider } from "./ollama.js";
-import { OpenAIProvider } from "./openai.js";
+import { OpenAIProvider } from "./openai/index.js";
 import { AIProviderConfig, OllamaProviderConfig } from "./types.js";
 
 type ProviderMap = {
   ollama: OllamaProvider;
   anthropic: AnthropicProvider;
   openai: OpenAIProvider;
-  google: GoogleAIProvider;
+  googleai: GoogleAIProvider;
 };
 
 export function getProvider<K extends keyof AIProviderConfig>(
@@ -32,7 +32,7 @@ export function getProvider<K extends keyof AIProviderConfig>(
         config["api-key"],
         config.model,
       ) as ProviderMap[K];
-    case "google":
+    case "googleai":
       return new GoogleAIProvider(
         config["api-key"],
         config.model,

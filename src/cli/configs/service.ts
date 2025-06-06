@@ -1,36 +1,31 @@
-import { ServiceConfig, ValidationError, BraveProviderConfig } from "./types.js";
+import { ServiceConfig, ValidationError } from "./types.js";
 
 export function isServiceConfig(
   config: any,
   error?: ValidationError,
 ): config is ServiceConfig {
-  // Must be a non-null object.
   if (typeof config !== "object" || config === null) {
     error && (error.value = "Config: must be a non-null object");
     return false;
   }
 
-  // Validate "openai" configuration if provided.
   if ("openai" in config) {
     const openai = config.openai;
     if (typeof openai !== "object" || openai === null) {
       error && (error.value = "Config: openai must be an object");
       return false;
     }
-    // "api-key" is required.
     if (typeof openai["api-key"] !== "string") {
       error && (error.value = "Config: openai.api-key must be a string");
       return false;
     }
 
-    // Optional "model", if provided, must be a string.
     if ("model" in openai && typeof openai.model !== "string") {
       error && (error.value = "Config: openai.model must be a string");
       return false;
     }
   }
 
-  // Validate "anthropic" configuration if provided.
   if ("anthropic" in config) {
     const anthropic = config.anthropic;
     if (typeof anthropic !== "object" || anthropic === null) {
@@ -49,7 +44,6 @@ export function isServiceConfig(
     }
   }
 
-  // Validate "ollama" configuration if provided.
   if ("ollama" in config) {
     const ollama = config.ollama;
     if (typeof ollama !== "object" || ollama === null) {
@@ -57,7 +51,6 @@ export function isServiceConfig(
       return false;
     }
 
-    // Both "url" and "model" are optional, but if present must be strings.
     if ("url" in ollama && typeof ollama.url !== "string") {
       error && (error.value = "Config: ollama.url must be a string");
       return false;
@@ -69,7 +62,24 @@ export function isServiceConfig(
     }
   }
 
-  // Validate "brave" configuration if provided.
+  if ("googleai" in config) {
+    const googleai = config.googleai;
+    if (typeof googleai !== "object" || googleai === null) {
+      error && (error.value = "Config: googleai must be an object");
+      return false;
+    }
+
+    if (typeof googleai["api-key"] !== "string") {
+      error && (error.value = "Config: googleai.api-key must be a string");
+      return false;
+    }
+
+    if ("model" in googleai && typeof googleai.model !== "string") {
+      error && (error.value = "Config: googleai.model must be a string");
+      return false;
+    }
+  }
+
   if ("brave" in config) {
     const brave = config.brave;
     if (typeof brave !== "object" || brave === null) {
@@ -82,7 +92,6 @@ export function isServiceConfig(
       return false;
     }
 
-    // "rateLimit" is optional but must be a number if provided.
     if ("rateLimit" in brave && typeof brave.rateLimit !== "number") {
       error && (error.value = "Config: brave.rateLimit must be a number");
       return false;

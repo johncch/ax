@@ -62,7 +62,12 @@ export async function executeChatAction<
   if (instruct.system) {
     chat.addSystem(instruct.system);
   }
-  chat.addUser(instruct.compile(variables, { recorder, options }));
+  const compiledPrompt = instruct.compile(variables, { recorder, options });
+  if (instruct.hasFiles()) {
+    chat.addUserWithFiles(compiledPrompt, instruct.files);
+  } else {
+    chat.addUser(compiledPrompt);
+  }
   if (instruct.hasTools()) {
     const toolSchemas = getToolSchemas(instruct.tools);
     chat.setToolSchemas(toolSchemas);
@@ -75,14 +80,14 @@ export async function executeChatAction<
 
   let continueProcessing = true;
   while (continueProcessing) {
-    const request = provider.createChatCompletionRequest(chat);
+    const request = provider.createChatRequest(chat, { recorder });
     const response = await request.execute({ recorder });
 
     stats.in += response.usage.in;
     stats.out += response.usage.out;
 
     if (response.type === "error") {
-      throw new Error(response.error.message);
+      throw new Error(JSON.stringify(response.error));
     }
 
     if (response.type === "success") {

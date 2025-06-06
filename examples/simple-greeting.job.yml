@@ -1,7 +1,8 @@
 using:
-  # engine: openai
+  engine: openai
+  model: gpt-4o
   # model: gpt-4o
-  engine: google
+  # engine: google
 
 jobs:
   greeting:

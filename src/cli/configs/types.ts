@@ -35,7 +35,7 @@ export type AIProviderUse =
   | ({ engine: "ollama" } & Partial<OllamaProviderConfig>)
   | ({ engine: "anthropic" } & Partial<AnthropicProviderConfig>)
   | ({ engine: "openai" } & Partial<OpenAIProviderConfig>)
-  | ({ engine: "google" } & Partial<GoogleAIProviderConfig>);
+  | ({ engine: "googleai" } & Partial<GoogleAIProviderConfig>);
 
 export interface DAGJob {
   [name: string]: Job & { dependsOn?: string | string[] };
@@ -79,6 +79,8 @@ export interface ChatStep extends StepBase {
   output?: Record<string, ResTypeStrings>;
   replace?: Replace[];
   tools?: string[];
+  images?: ImageReference[];
+  documents?: DocumentReference[];
 }
 
 export interface WriteToDiskStep extends StepBase {
@@ -91,4 +93,12 @@ export interface Replace {
   source: "file";
   pattern: string;
   files: string | string[];
+}
+
+export interface ImageReference {
+  file: string;
+}
+
+export interface DocumentReference {
+  file: string;
 }

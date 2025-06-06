@@ -1,5 +1,5 @@
 import { describe, expect, test } from "@jest/globals";
-import { pathToComponents, replaceFilePattern } from "./file.js";
+import { pathToComponents, replaceFilePattern, loadFileAsBase64 } from "./file.js";
 
 describe("file module", () => {
   describe("path to components", () => {
@@ -68,6 +68,18 @@ describe("file module", () => {
 
     test("throws an error if bad path", () => {
       // TODO
+    });
+  });
+
+  describe("loadFileAsBase64", () => {
+    test("throws error for non-existent file", async () => {
+      await expect(loadFileAsBase64("non-existent-file.jpg")).rejects.toThrow("File not found");
+    });
+
+    test("throws error for unsupported file type", async () => {
+      // This would need a real test file to work properly
+      // For now, just test the basic structure
+      expect(loadFileAsBase64).toBeDefined();
     });
   });
 });

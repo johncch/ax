@@ -1,6 +1,6 @@
 {
   "name": "axle",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "axle is a command line tool for running workflows against LLM APIs.",
   "type": "module",
   "main": "./dist/index.js",
@@ -12,7 +12,7 @@
     }
   },
   "bin": {
-    "ax": "./dist/cli.js"
+    "axle": "./dist/cli.js"
   },
   "files": [
     "dist"
@@ -22,7 +22,7 @@
     "build": "pkgroll --clean-dist --minify",
     "build-dev": "pkgroll --clean-dist",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "get-models": "node scripts/getModels.js",
+    "get-models": "npx tsx scripts/getModels.ts",
     "prompt-scenarios": "npx tsx ./scripts/prompt.scenarios.ts",
     "test-providers": "npx tsx ./scripts/testProviders.ts"
   },

@@ -1,0 +1,12 @@
+using:
+  engine: googleai
+
+jobs:
+  pdf:
+    type: serial
+    steps:
+      - uses: chat
+        message: |
+          Get me the first paragraph of the document.
+        documents:
+          - file: examples/data/designing-a-new-foundation.pdf

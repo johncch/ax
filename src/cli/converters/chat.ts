@@ -2,7 +2,7 @@ import { Instruct } from "../../core/Instruct.js";
 import { ResTypeStrings } from "../../core/types.js";
 import { Recorder } from "../../recorder/recorder.js";
 import { getToolRegistry } from "../../tools/index.js";
-import { loadManyFiles } from "../../utils/file.js";
+import { loadManyFiles, loadFileAsBase64 } from "../../utils/file.js";
 import { arrayify } from "../../utils/utils.js";
 import { ChatStep } from "../configs/types.js";
 import { StepToClassConverter } from "./converters.js";
@@ -45,6 +45,29 @@ export const chatConverter: StepToClassConverter<
         }
       }
     }
+
+    if (step.images) {
+      for (const imageRef of step.images) {
+        try {
+          const fileInfo = await loadFileAsBase64(imageRef.file);
+          instruct.addFile(fileInfo);
+        } catch (error) {
+          throw new Error(`Failed to load image '${imageRef.file}': ${error.message}`);
+        }
+      }
+    }
+
+    if (step.documents) {
+      for (const documentRef of step.documents) {
+        try {
+          const fileInfo = await loadFileAsBase64(documentRef.file);
+          instruct.addFile(fileInfo);
+        } catch (error) {
+          throw new Error(`Failed to load document '${documentRef.file}': ${error.message}`);
+        }
+      }
+    }
+
     return instruct;
   },
 };

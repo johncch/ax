@@ -1,0 +1,13 @@
+using:
+  engine: ollama
+  model: gemma3
+
+jobs:
+  image:
+    type: serial
+    steps:
+      - uses: chat
+        message: |
+          What are the data that is shown in the image.
+        images:
+          - file: examples/data/economist-brainy-imports.png

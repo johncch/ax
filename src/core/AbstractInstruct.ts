@@ -2,6 +2,7 @@ import { Recorder } from "../recorder/recorder.js";
 import { ToolExecutable } from "../tools/types.js";
 import { Task } from "../types.js";
 import { replaceVariables } from "../utils/replace.js";
+import { FileInfo } from "../utils/file.js";
 import {
   ResTypes,
   ResTypeStrings,
@@ -25,6 +26,7 @@ export abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>>
   system: string | null = null;
   inputs: Record<string, string> = {};
   tools: Record<string, ToolExecutable> = {};
+  files: FileInfo[] = [];
 
   resFormat: O;
   rawResponse: string;
@@ -53,8 +55,23 @@ export abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>>
     this.tools[tool.name] = tool;
   }
 
+  addImage(file: FileInfo) {
+    if (file.type !== 'image') {
+      throw new Error(`Expected image file, got ${file.type}`);
+    }
+    this.files.push(file);
+  }
+
+  addFile(file: FileInfo) {
+    this.files.push(file);
+  }
+
   hasTools(): boolean {
     return Object.keys(this.tools).length > 0;
+  }
+
+  hasFiles(): boolean {
+    return this.files.length > 0;
   }
 
   get result() {

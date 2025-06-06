@@ -72,6 +72,21 @@ declare class Recorder {
     shutdown(): Promise<void>;
 }
 
+interface FileInfo {
+    path: string;
+    base64: string;
+    mimeType: string;
+    size: number;
+    name: string;
+    type: "image" | "document";
+}
+/**
+ * Load a file and encode it to base64 with validation
+ * @param filePath - Path to the file
+ * @returns FileInfo object with base64 data and metadata
+ */
+declare function loadFileAsBase64(filePath: string): Promise<FileInfo>;
+
 interface ToolSchema {
     name: string;
     description: string;
@@ -99,8 +114,12 @@ declare class Chat {
     setToolSchemas(schemas: ToolSchema[]): void;
     addSystem(message: string): void;
     addUser(message: string): void;
+    addUserWithFiles(message: string, files?: FileInfo[]): void;
     addAssistant(message: string, toolCalls?: ToolCall[]): void;
     addTools(input: Array<ChatItemToolCallResult>): void;
+    hasFiles(): boolean;
+    getTextContent(content: string | ChatContent[]): string;
+    getFiles(content: string | ChatContent[]): FileInfo[];
     toString(): string;
 }
 
@@ -124,10 +143,12 @@ interface AIProviderConfig {
     ollama: OllamaProviderConfig;
     anthropic: AnthropicProviderConfig;
     openai: OpenAIProviderConfig;
-    google: GoogleAIProviderConfig;
+    googleai: GoogleAIProviderConfig;
 }
 interface AIProvider {
-    createChatCompletionRequest(chat: Chat): AIRequest;
+    createChatRequest(chat: Chat, context: {
+        recorder?: Recorder;
+    }): AIRequest;
 }
 interface AIRequest {
     execute(runtime: {
@@ -169,7 +190,7 @@ type ChatItem = ChatItemUser | ChatItemAssistant | ChatItemToolCall;
 interface ChatItemUser {
     role: "user";
     name?: string;
-    content: string;
+    content: string | ChatContent[];
 }
 interface ChatItemAssistant {
     role: "assistant";
@@ -184,6 +205,15 @@ interface ChatItemToolCallResult {
 interface ChatItemToolCall {
     role: "tool";
     content: Array<ChatItemToolCallResult>;
+}
+type ChatContent = ChatContentText | ChatContentFile;
+interface ChatContentText {
+    type: "text";
+    text: string;
+}
+interface ChatContentFile {
+    type: "file";
+    file: FileInfo;
 }
 
 declare class AxleError extends Error {
@@ -265,6 +295,12 @@ declare class Axle {
      */
     executeDAG(dagDefinition: DAGDefinition, variables?: Record<string, any>, options?: DAGWorkflowOptions): Promise<WorkflowResult>;
     get logs(): RecorderEntry[];
+    /**
+     * Load a file and encode it to base64 for use with multimodal models
+     * @param filePath - Path to the image or PDF file
+     * @returns FileInfo object with base64 data and metadata
+     */
+    static loadFile(filePath: string): Promise<FileInfo>;
 }
 
 declare enum ResTypes {
@@ -286,6 +322,7 @@ declare abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>
     system: string | null;
     inputs: Record<string, string>;
     tools: Record<string, ToolExecutable>;
+    files: FileInfo[];
     resFormat: O;
     rawResponse: string;
     finalPrompt: string;
@@ -294,7 +331,10 @@ declare abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>
     addInput(name: string, value: string): void;
     addTools(tools: ToolExecutable[]): void;
     addTool(tool: ToolExecutable): void;
+    addImage(file: FileInfo): void;
+    addFile(file: FileInfo): void;
     hasTools(): boolean;
+    hasFiles(): boolean;
     get result(): StructuredOutput<O>;
     compile(variables: Record<string, string>, runtime?: {
         recorder?: Recorder;
@@ -401,6 +441,8 @@ interface ChatStep extends StepBase {
     output?: Record<string, ResTypeStrings>;
     replace?: Replace[];
     tools?: string[];
+    images?: ImageReference[];
+    documents?: DocumentReference[];
 }
 interface WriteToDiskStep extends StepBase {
     uses: "write-to-disk";
@@ -411,6 +453,12 @@ interface Replace {
     source: "file";
     pattern: string;
     files: string | string[];
+}
+interface ImageReference {
+    file: string;
+}
+interface DocumentReference {
+    file: string;
 }
 
 interface ConcurrentWorkflow {
@@ -430,4 +478,4 @@ interface SerialWorkflow {
 }
 declare const serialWorkflow: SerialWorkflow;
 
-export { type AIProvider, Axle, ChainOfThought, type DAGDefinition, type DAGWorkflowOptions, Instruct, type SerializedExecutionResponse, WriteOutputTask, concurrentWorkflow, dagWorkflow, serialWorkflow };
+export { type AIProvider, Axle, ChainOfThought, type DAGDefinition, type DAGWorkflowOptions, type FileInfo, Instruct, type SerializedExecutionResponse, WriteOutputTask, concurrentWorkflow, dagWorkflow, loadFileAsBase64, serialWorkflow };

@@ -1,29 +1,25 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { Recorder } from "../recorder/recorder.js";
+import { Recorder } from "../../recorder/recorder.js";
 
 import {
+  DocumentBlockParam,
+  ImageBlockParam,
   MessageParam,
   TextBlockParam,
   ToolResultBlockParam,
   ToolUseBlockParam,
 } from "@anthropic-ai/sdk/resources";
-import { Chat } from "./chat.js";
+import { Chat } from "../chat.js";
 import {
   AIProvider,
   AIRequest,
   AIResponse,
   StopReason,
   ToolCall,
-} from "./types.js";
+} from "../types.js";
+import { Models, MULTIMODAL_MODELS } from "./models.js";
 
-export const Models = {
-  CLAUDE_3_7_SONNET_LATEST: "claude-3-7-sonnet-latest",
-  CLAUDE_3_7_SONNET_20250219: "claude-3-7-sonnet-20250219",
-  CLAUDE_3_5_HAIKU_LATEST: "claude-3-5-haiku-latest",
-  CLAUDE_3_5_HAIKU_20241022: "claude-3-5-haiku-20241022",
-} as const;
-
-const DEFAULT_MODEL = Models.CLAUDE_3_5_HAIKU_LATEST;
+const DEFAULT_MODEL = Models.CLAUDE_SONNET_4_LATEST;
 
 export class AnthropicProvider implements AIProvider {
   name = "Anthropic";
@@ -37,7 +33,16 @@ export class AnthropicProvider implements AIProvider {
     });
   }
 
-  createChatCompletionRequest(chat: Chat): AIRequest {
+  createChatRequest(
+    chat: Chat,
+    context: { recorder?: Recorder } = {},
+  ): AIRequest {
+    const { recorder } = context;
+    if (chat.hasFiles() && !MULTIMODAL_MODELS.includes(this.model as any)) {
+      recorder?.warn?.log(
+        `Model ${this.model} may not support multimodal content. Use one of: ${MULTIMODAL_MODELS.join(", ")}`,
+      );
+    }
     return new AnthropicChatRequest(this, chat);
   }
 }
@@ -53,8 +58,8 @@ class AnthropicChatRequest implements AIRequest {
     const { client, model } = this.provider;
     const request = {
       model: model,
+      max_tokens: 4096,
       ...prepareRequest(this.chat),
-      max_tokens: getMaxTokens(model),
     };
     recorder?.debug?.log(request);
 
@@ -76,21 +81,6 @@ class AnthropicChatRequest implements AIRequest {
 
     recorder?.debug?.log(result);
     return result;
-  }
-}
-
-function getMaxTokens(model: string): number {
-  switch (model) {
-    case "claude-3-5-sonnet-20240620":
-      return 4096;
-    case "claude-3-opus-20240229":
-      return 4096;
-    case "claude-3-sonnet-20240229":
-      return 4096;
-    case "claude-3-haiku-20240307":
-      return 4096;
-    default:
-      return 4096;
   }
 }
 
@@ -144,10 +134,58 @@ function prepareRequest(chat: Chat) {
         } satisfies MessageParam;
 
       default:
-        return {
-          role: "user",
-          content: msg.content,
-        } satisfies MessageParam;
+        if (typeof msg.content === "string") {
+          return {
+            role: "user",
+            content: msg.content,
+          } satisfies MessageParam;
+        } else {
+          const content: Array<
+            TextBlockParam | ImageBlockParam | DocumentBlockParam
+          > = [];
+
+          for (const item of msg.content) {
+            if (item.type === "text") {
+              content.push({
+                type: "text",
+                text: item.text,
+              } satisfies TextBlockParam);
+            } else if (item.type === "file") {
+              const file = item.file;
+              if (file.type === "image") {
+                content.push({
+                  type: "image",
+                  source: {
+                    type: "base64",
+                    media_type: file.mimeType as
+                      | "image/jpeg"
+                      | "image/png"
+                      | "image/gif"
+                      | "image/webp",
+                    data: file.base64,
+                  },
+                } satisfies ImageBlockParam);
+              } else if (
+                file.type === "document" &&
+                file.mimeType === "application/pdf"
+              ) {
+                content.push({
+                  type: "document",
+                  source: {
+                    type: "base64",
+                    media_type: "application/pdf",
+                    data: file.base64,
+                  },
+                } satisfies DocumentBlockParam);
+              }
+            }
+          }
+
+          return {
+            role: "user",
+            content,
+          } satisfies MessageParam;
+        }
     }
   }) satisfies Array<MessageParam>;
 

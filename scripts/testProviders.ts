@@ -106,10 +106,10 @@ async function main() {
     },
     {
       name: "google",
-      envKey: "GOOGLE_API_KEY",
+      envKey: "GOOGLE_AI_API_KEY",
       config: {
-        google: {
-          "api-key": process.env.GOOGLE_API_KEY || "",
+        googleai: {
+          "api-key": process.env.GOOGLE_AI_API_KEY || "",
         },
       },
     },
@@ -175,7 +175,7 @@ async function main() {
     console.log("• Add API keys to your .env file:");
     console.log("  - ANTHROPIC_API_KEY=your_key_here");
     console.log("  - OPENAI_API_KEY=your_key_here");
-    console.log("  - GOOGLE_API_KEY=your_key_here");
+    console.log("  - GOOGLE_AI_API_KEY=your_key_here");
     console.log(
       "• For Ollama: Make sure the service is running (ollama serve)",
     );

@@ -1,7 +1,7 @@
-import { Axle, Instruct, WriteOutputTask } from "../../src/index.js";
-
-const apiKey = process.env.OPENAI_API_KEY;
-const antropicApiKey = process.env.ANTHROPIC_API_KEY;
+import { config } from "dotenv";
+import { Instruct, WriteOutputTask } from "../../src/index.js";
+import { getAxle } from "./helper.js";
+config();
 
 const instruct = Instruct.with(
   "Please provide a friendly greeting for {{name}}",
@@ -11,10 +11,8 @@ instruct.addInput("name", "John Doe");
 
 const writeTask = new WriteOutputTask("./output/greeting-{name}.txt");
 
-// const axle = new Axle({ ollama: { model: "qwen3:32b" } });
-// const axle = new Axle({ ollama: { model: "gemma3" } });
-// const axle = new Axle({ openai: { "api-key": apiKey } });
-const axle = new Axle({ anthropic: { "api-key": antropicApiKey } });
-const result = await axle.execute(instruct);
+const axle = getAxle();
+const result = await axle.execute(instruct, writeTask);
+
 console.log(result);
 console.log(instruct.result.greeting);

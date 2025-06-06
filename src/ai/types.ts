@@ -1,5 +1,6 @@
 import { Recorder } from "../recorder/recorder.js";
 import { Stats } from "../types.js";
+import { FileInfo } from "../utils/file.js";
 import { Chat } from "./chat.js";
 
 /*
@@ -14,7 +15,7 @@ export interface AIProviderConfig {
   ollama: OllamaProviderConfig;
   anthropic: AnthropicProviderConfig;
   openai: OpenAIProviderConfig;
-  google: GoogleAIProviderConfig;
+  googleai: GoogleAIProviderConfig;
 }
 
 /*
@@ -22,7 +23,7 @@ export interface AIProviderConfig {
  */
 
 export interface AIProvider {
-  createChatCompletionRequest(chat: Chat): AIRequest;
+  createChatRequest(chat: Chat, context: { recorder?: Recorder }): AIRequest;
 }
 
 export interface AIRequest {
@@ -70,7 +71,7 @@ export type ChatItem = ChatItemUser | ChatItemAssistant | ChatItemToolCall;
 export interface ChatItemUser {
   role: "user";
   name?: string;
-  content: string;
+  content: string | ChatContent[];
 }
 
 export interface ChatItemAssistant {
@@ -88,4 +89,16 @@ export interface ChatItemToolCallResult {
 export interface ChatItemToolCall {
   role: "tool";
   content: Array<ChatItemToolCallResult>;
+}
+
+export type ChatContent = ChatContentText | ChatContentFile;
+
+export interface ChatContentText {
+  type: "text";
+  text: string;
+}
+
+export interface ChatContentFile {
+  type: "file";
+  file: FileInfo;
 }

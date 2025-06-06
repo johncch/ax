@@ -6,45 +6,13 @@ import {
   ChatCompletionTool,
   ChatCompletionToolMessageParam,
   ChatCompletionUserMessageParam,
-} from "openai/resources.mjs";
-import { Recorder } from "../recorder/recorder.js";
-import { Chat } from "./chat.js";
-import { AIProvider, AIRequest, AIResponse, StopReason } from "./types.js";
+} from "openai/resources";
+import { Recorder } from "../../recorder/recorder.js";
+import { Chat } from "../chat.js";
+import { AIRequest, AIResponse, StopReason } from "../types.js";
+import { OpenAIProvider } from "./provider.js";
 
-/**
- * This is a convenience constant dictionary that exposes the
- * most common OpenAI models that this library may use.
- */
-export const Models = {
-  GPT_4_1: "gpt-4.1",
-  GPT_4_1_MINI: "gpt-4.1-mini",
-  GPT_4_1_NANO: "gpt-4.1-nano",
-  GPT_4O: "gpt-4o",
-  O3_MINI: "o3-mini",
-  O4_MINI: "o4-mini",
-} as const;
-
-const DEFAULT_MODEL = Models.GPT_4_1;
-
-export class OpenAIProvider implements AIProvider {
-  name = "OpenAI";
-  client: OpenAI;
-  model: string | undefined;
-
-  constructor(
-    private apiKey: string,
-    model?: string | undefined,
-  ) {
-    this.model = model || DEFAULT_MODEL;
-    this.client = new OpenAI({ apiKey: apiKey });
-  }
-
-  createChatCompletionRequest(chat: Chat) {
-    return new OpenAIChatCompletionRequest(this, chat);
-  }
-}
-
-class OpenAIChatCompletionRequest implements AIRequest {
+export class OpenAIChatCompletionRequest implements AIRequest {
   constructor(
     private provider: OpenAIProvider,
     private chat: Chat,
@@ -126,30 +94,57 @@ function prepareRequest(chat: Chat) {
           })) satisfies ChatCompletionToolMessageParam[];
 
         case "assistant":
+          const toolCalls = msg.toolCalls?.map((call) => {
+            const id = call.id;
+            return {
+              type: "function",
+              function: {
+                name: call.name,
+                arguments:
+                  typeof call.arguments === "string"
+                    ? call.arguments
+                    : JSON.stringify(call.arguments),
+              },
+              ...(id && { id }),
+            };
+          });
           return {
             role: msg.role,
             content: msg.content,
-            tool_calls: msg.toolCalls.map((call) => {
-              const id = call.id;
-              return {
-                type: "function",
-                function: {
-                  name: call.name,
-                  arguments:
-                    typeof call.arguments === "string"
-                      ? call.arguments
-                      : JSON.stringify(call.arguments),
-                },
-                ...(id && { id }),
-              };
-            }),
+            ...(toolCalls && { toolCalls }),
           } satisfies ChatCompletionAssistantMessageParam;
 
         default:
-          return {
-            role: msg.role,
-            content: msg.content,
-          } satisfies ChatCompletionUserMessageParam;
+          if (typeof msg.content === "string") {
+            return {
+              role: msg.role,
+              content: msg.content,
+            } satisfies ChatCompletionUserMessageParam;
+          } else {
+            const content: any[] = [];
+            for (const item of msg.content) {
+              if (item.type === "text") {
+                content.push({
+                  type: "text",
+                  text: item.text,
+                });
+              } else if (item.type === "file") {
+                const file = item.file;
+                if (file.type === "image") {
+                  content.push({
+                    type: "image_url",
+                    image_url: {
+                      url: `data:${file.mimeType};base64,${file.base64}`,
+                    },
+                  });
+                }
+              }
+            }
+            return {
+              role: msg.role,
+              content,
+            } satisfies ChatCompletionUserMessageParam;
+          }
       }
     })
     .flat(Infinity) as Array<ChatCompletionMessageParam>;

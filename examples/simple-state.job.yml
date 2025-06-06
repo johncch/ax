@@ -1,0 +1,13 @@
+using:
+  engine: openai
+  # model: gpt-4o
+  # engine: google
+
+jobs:
+  greeting:
+    type: serial
+    steps:
+      - uses: chat
+        message: tell me a joke
+      - uses: chat
+        message: explain why this is funny.
