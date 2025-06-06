@@ -4,7 +4,7 @@ Axle is a CLI tool and library for building composable LLM workflows. Inspired b
 
 The project is evolving quickly and the API is still unstable, so this README will remain minimal for now.
 
-To get started, see the [examples](./examples) directory.
+To get started, see the [examples](https://github.com/johncch/axle/tree/main/examples) directory.
 
 ## Configuration
 For CLI use, you will need to provide a `ax.config.yml` where you're running the tool.
