@@ -1,12 +1,14 @@
-import { Recorder } from "../recorder/recorder.js";
-import { Chat } from "./chat.js";
+import { ChatCompletionTool } from "openai/resources";
+import { Recorder } from "../../recorder/recorder.js";
+import { Chat, getImages, getTextAndInstructions } from "../chat.js";
 import {
   AIProvider,
   AIRequest,
   AIResponse,
   StopReason,
   ToolCall,
-} from "./types.js";
+} from "../types.js";
+import { OllamaMessage, OllamaRequest, OllamaSystemMessage } from "./types.js";
 
 const DEFAULT_OLLAMA_URL = "http://localhost:11434";
 
@@ -49,12 +51,11 @@ class OllamaChatCompletionRequest implements AIRequest {
   async execute(runtime: { recorder?: Recorder }): Promise<AIResponse> {
     const { recorder } = runtime;
     const requestBody = {
-      model: this.model,
       stream: false,
       options: {
         temperature: 0.7,
       },
-      ...prepareRequest(this.chat),
+      ...prepareRequest(this.chat, this.model),
     };
 
     recorder?.debug?.log(requestBody);
@@ -103,8 +104,8 @@ class OllamaChatCompletionRequest implements AIRequest {
  * @param chat
  * @returns
  */
-function prepareRequest(chat: Chat) {
-  const systemMsg = [];
+export function prepareRequest(chat: Chat, model: string): OllamaRequest {
+  const systemMsg: OllamaSystemMessage[] = [];
   if (chat.system) {
     systemMsg.push({
       role: "system",
@@ -112,75 +113,67 @@ function prepareRequest(chat: Chat) {
     });
   }
 
-  const tools =
-    chat.tools.length > 0
-      ? chat.tools.map((schema) => {
+  let tools: ChatCompletionTool[] | undefined = undefined;
+  if (chat.tools.length > 0) {
+    tools = chat.tools.map((schema) => {
+      return {
+        type: "function",
+        function: schema,
+      };
+    });
+  }
+
+  const messages: OllamaMessage[] = chat.messages
+    .map((msg) => {
+      if (msg.role === "tool") {
+        return msg.content.map((r) => ({
+          role: "tool" as const,
+          tool_call_id: r.id,
+          content: r.content,
+        }));
+      }
+
+      if (msg.role === "assistant") {
+        const toolCalls = msg.toolCalls?.map((call) => {
+          const id = call.id;
           return {
             type: "function",
-            function: schema,
+            function: {
+              name: call.name,
+              arguments: call.arguments,
+            },
+            ...(id && { id }),
           };
-        })
-      : undefined;
+        });
+        return {
+          role: msg.role,
+          content: msg.content,
+          ...(toolCalls && { toolCalls }),
+        };
+      }
 
-  const messages = chat.messages
-    .map((msg) => {
-      switch (msg.role) {
-        case "tool":
-          return msg.content.map((r) => ({
-            role: "tool",
-            tool_call_id: r.id,
-            content: r.content,
-          }));
+      if (typeof msg.content === "string") {
+        return {
+          role: msg.role,
+          content: msg.content,
+        };
+      } else {
+        const content = getTextAndInstructions(msg.content);
+        const images = getImages(msg.content).map((img) => img.base64);
 
-        case "assistant":
-          return {
-            role: msg.role,
-            content: msg.content,
-            tool_calls: msg.toolCalls.map((call) => {
-              const id = call.id;
-              return {
-                type: "function",
-                function: {
-                  name: call.name,
-                  arguments: call.arguments,
-                },
-                ...(id && { id }),
-              };
-            }),
-          };
-
-        default:
-          if (typeof msg.content === "string") {
-            return {
-              role: msg.role,
-              content: msg.content,
-            };
-          } else {
-            let textContent = "";
-            const images: string[] = [];
-
-            for (const item of msg.content) {
-              if (item.type === "text") {
-                textContent += item.text;
-              } else if (item.type === "file") {
-                const file = item.file;
-                if (file.type === "image") {
-                  images.push(file.base64);
-                }
-              }
-            }
-
-            return {
-              role: msg.role,
-              content: textContent,
-              ...(images.length > 0 && { images }),
-            };
-          }
+        return {
+          role: msg.role,
+          content,
+          ...(images.length > 0 && {
+            images: images,
+          }),
+        };
       }
     })
-    .flat(Infinity);
+    .flat(1);
 
   return {
+    model,
     messages: [...systemMsg, ...messages],
     ...(tools && { tools }),
   };

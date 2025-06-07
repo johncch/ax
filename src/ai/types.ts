@@ -91,11 +91,19 @@ export interface ChatItemToolCall {
   content: Array<ChatItemToolCallResult>;
 }
 
-export type ChatContent = ChatContentText | ChatContentFile;
+export type ChatContent =
+  | ChatContentText
+  | ChatContentFile
+  | ChatContentInstructions;
 
 export interface ChatContentText {
   type: "text";
   text: string;
+}
+
+export interface ChatContentInstructions {
+  type: "instructions";
+  instructions: string;
 }
 
 export interface ChatContentFile {

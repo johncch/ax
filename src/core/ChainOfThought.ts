@@ -36,13 +36,16 @@ export class ChainOfThought<
       recorder?: Recorder;
       options?: { warnUnused?: boolean };
     } = {},
-  ): string {
+  ): { message: string; instructions: string } {
     const userPrompt = this.getFinalUserPrompt(variables, runtime);
     const instructionPrompt = this.getFormatInstructions();
     const chainOfThoughtPrompt =
-      "\nLet's think step by step. Use <thinking></thinking> tags to show your reasoning and thought process.";
+      "Let's think step by step. Use <thinking></thinking> tags to show your reasoning and thought process.";
 
-    return [userPrompt, chainOfThoughtPrompt, instructionPrompt].join("\n");
+    return {
+      message: userPrompt,
+      instructions: `${chainOfThoughtPrompt}\n\n${instructionPrompt}`,
+    };
   }
 
   override finalize(rawValue: string): StructuredOutput<O> & { thinking } {

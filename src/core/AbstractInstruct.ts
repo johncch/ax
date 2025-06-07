@@ -1,8 +1,8 @@
 import { Recorder } from "../recorder/recorder.js";
 import { ToolExecutable } from "../tools/types.js";
 import { Task } from "../types.js";
-import { replaceVariables } from "../utils/replace.js";
 import { FileInfo } from "../utils/file.js";
+import { replaceVariables } from "../utils/replace.js";
 import {
   ResTypes,
   ResTypeStrings,
@@ -56,7 +56,7 @@ export abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>>
   }
 
   addImage(file: FileInfo) {
-    if (file.type !== 'image') {
+    if (file.type !== "image") {
       throw new Error(`Expected image file, got ${file.type}`);
     }
     this.files.push(file);
@@ -86,10 +86,14 @@ export abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>>
       recorder?: Recorder;
       options?: { warnUnused?: boolean };
     } = {},
-  ): string {
+  ): { message: string; instructions: string } {
     const userPrompt = this.getFinalUserPrompt(variables, runtime);
     const instructionPrompt = this.getFormatInstructions();
-    return userPrompt + "\n" + instructionPrompt;
+
+    return {
+      message: userPrompt,
+      instructions: instructionPrompt,
+    };
   }
 
   protected getFinalUserPrompt(
@@ -117,19 +121,19 @@ export abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>>
   protected getFormatInstructions(): string {
     let prompt = "";
     for (const [key, value] of Object.entries(this.resFormat)) {
-      const typeString = this.resFormat[key];
+      const typeString = value;
       switch (typeString) {
         case ResTypes.String:
-          prompt += `\nUse <${key}></${key}> to indicate the answer for ${key}. The answer must be a string.`;
+          prompt += `Use <${key}></${key}> to indicate the answer for ${key}. The answer must be a string.\n`;
           break;
         case ResTypes.Number:
-          prompt += `\nUse <${key}></${key}> to indicate the answer for ${key}. the answer must be a number.`;
+          prompt += `Use <${key}></${key}> to indicate the answer for ${key}. the answer must be a number.\n`;
           break;
         case ResTypes.Boolean:
-          prompt += `\nUse <${key}></${key}> to indicate the answer for ${key}. The answer must be a true/false.`;
+          prompt += `Use <${key}></${key}> to indicate the answer for ${key}. The answer must be a true/false.\n`;
           break;
         case ResTypes.List:
-          prompt += `\nUse <${key}></${key}> to indicate the answer for ${key}. The answer must be a list of strings. Each string should be in a new line.`;
+          prompt += `Use <${key}></${key}> to indicate the answer for ${key}. The answer must be a list of strings. Each string should be in a new line.\n`;
           break;
       }
     }

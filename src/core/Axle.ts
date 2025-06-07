@@ -4,7 +4,7 @@ import { AxleError } from "../errors/index.js";
 import { Recorder } from "../recorder/recorder.js";
 import { RecorderWriter } from "../recorder/types.js";
 import { Task } from "../types.js";
-import { loadFileAsBase64, FileInfo } from "../utils/file.js";
+import { FileInfo, loadFileAsBase64 } from "../utils/file.js";
 import { dagWorkflow } from "../workflows/dag.js";
 import { serialWorkflow } from "../workflows/serial.js";
 import {
@@ -17,7 +17,7 @@ export class Axle {
   private provider: AIProvider;
   private stats = { in: 0, out: 0 };
   private variables: Record<string, any> = {};
-  private recorder = new Recorder();
+  recorder = new Recorder();
 
   constructor(config: Partial<AIProviderConfig>) {
     if (Object.entries(config).length !== 1) {
