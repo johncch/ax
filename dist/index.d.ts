@@ -114,12 +114,13 @@ declare class Chat {
     setToolSchemas(schemas: ToolSchema[]): void;
     addSystem(message: string): void;
     addUser(message: string): void;
-    addUserWithFiles(message: string, files?: FileInfo[]): void;
+    addUser(message: string, instruction: string): void;
+    addUser(message: string, instruction: string, files: FileInfo[]): void;
+    addUser(message: string, files: FileInfo[]): any;
     addAssistant(message: string, toolCalls?: ToolCall[]): void;
     addTools(input: Array<ChatItemToolCallResult>): void;
     hasFiles(): boolean;
-    getTextContent(content: string | ChatContent[]): string;
-    getFiles(content: string | ChatContent[]): FileInfo[];
+    latest(): ChatItem | undefined;
     toString(): string;
 }
 
@@ -206,10 +207,14 @@ interface ChatItemToolCall {
     role: "tool";
     content: Array<ChatItemToolCallResult>;
 }
-type ChatContent = ChatContentText | ChatContentFile;
+type ChatContent = ChatContentText | ChatContentFile | ChatContentInstructions;
 interface ChatContentText {
     type: "text";
     text: string;
+}
+interface ChatContentInstructions {
+    type: "instructions";
+    instructions: string;
 }
 interface ChatContentFile {
     type: "file";
@@ -277,7 +282,7 @@ declare class Axle {
     private provider;
     private stats;
     private variables;
-    private recorder;
+    recorder: Recorder;
     constructor(config: Partial<AIProviderConfig>);
     addWriter(writer: RecorderWriter): void;
     /**
@@ -341,7 +346,10 @@ declare abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>
         options?: {
             warnUnused?: boolean;
         };
-    }): string;
+    }): {
+        message: string;
+        instructions: string;
+    };
     protected getFinalUserPrompt(variables: Record<string, string>, runtime?: {
         recorder?: Recorder;
         options?: {
@@ -387,7 +395,10 @@ declare class ChainOfThought<O extends Record<string, ResTypeStrings>> extends A
         options?: {
             warnUnused?: boolean;
         };
-    }): string;
+    }): {
+        message: string;
+        instructions: string;
+    };
     finalize(rawValue: string): StructuredOutput<O> & {
         thinking: any;
     };
@@ -478,4 +489,4 @@ interface SerialWorkflow {
 }
 declare const serialWorkflow: SerialWorkflow;
 
-export { type AIProvider, Axle, ChainOfThought, type DAGDefinition, type DAGWorkflowOptions, type FileInfo, Instruct, type SerializedExecutionResponse, WriteOutputTask, concurrentWorkflow, dagWorkflow, loadFileAsBase64, serialWorkflow };
+export { type AIProvider, Axle, ChainOfThought, type DAGDefinition, type DAGWorkflowOptions, type FileInfo, Instruct, LogLevel, type SerializedExecutionResponse, WriteOutputTask, concurrentWorkflow, dagWorkflow, loadFileAsBase64, serialWorkflow };

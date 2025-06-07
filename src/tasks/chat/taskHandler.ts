@@ -62,11 +62,14 @@ export async function executeChatAction<
   if (instruct.system) {
     chat.addSystem(instruct.system);
   }
-  const compiledPrompt = instruct.compile(variables, { recorder, options });
+  const { message, instructions } = instruct.compile(variables, {
+    recorder,
+    options,
+  });
   if (instruct.hasFiles()) {
-    chat.addUserWithFiles(compiledPrompt, instruct.files);
+    chat.addUser(message, instructions, instruct.files);
   } else {
-    chat.addUser(compiledPrompt);
+    chat.addUser(message, instructions);
   }
   if (instruct.hasTools()) {
     const toolSchemas = getToolSchemas(instruct.tools);

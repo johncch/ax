@@ -9,7 +9,12 @@ import {
   ToolResultBlockParam,
   ToolUseBlockParam,
 } from "@anthropic-ai/sdk/resources";
-import { Chat } from "../chat.js";
+import {
+  Chat,
+  getDocuments,
+  getImages,
+  getTextAndInstructions,
+} from "../chat.js";
 import {
   AIProvider,
   AIRequest,
@@ -99,93 +104,103 @@ function getStopReason(reason: string) {
   }
 }
 
-function prepareRequest(chat: Chat) {
+export function prepareRequest(chat: Chat) {
   const messages = chat.messages.map((msg) => {
-    switch (msg.role) {
-      case "assistant":
-        const content: Array<TextBlockParam | ToolUseBlockParam> = [];
-        content.push({ type: "text", text: msg.content });
-        if (msg.toolCalls) {
-          content.push(
-            ...msg.toolCalls.map(
-              (call) =>
+    if (msg.role === "assistant") {
+      const content: Array<TextBlockParam | ToolUseBlockParam> = [];
+      content.push({ type: "text", text: msg.content });
+      if (msg.toolCalls) {
+        content.push(
+          ...msg.toolCalls.map(
+            (call) =>
+              ({
+                type: "tool_use",
+                id: call.id,
+                name: call.name,
+                input: call.arguments,
+              }) satisfies ToolUseBlockParam,
+          ),
+        );
+      }
+      return {
+        role: "assistant",
+        content,
+      };
+    }
+
+    if (msg.role === "tool") {
+      return {
+        role: "user",
+        content: msg.content.map((r) => ({
+          type: "tool_result",
+          tool_use_id: r.id,
+          content: r.content,
+        })) satisfies Array<ToolResultBlockParam>,
+      } satisfies MessageParam;
+    }
+
+    if (typeof msg.content === "string") {
+      return {
+        role: "user",
+        content: msg.content,
+      } satisfies MessageParam;
+    } else {
+      const content: Array<
+        TextBlockParam | ImageBlockParam | DocumentBlockParam
+      > = [];
+
+      const text = getTextAndInstructions(msg.content);
+      if (text) {
+        content.push({
+          type: "text",
+          text,
+        } satisfies TextBlockParam);
+      }
+
+      const images = getImages(msg.content);
+      if (images.length > 0) {
+        content.push(
+          ...images.map(
+            (img) =>
+              ({
+                type: "image" as const,
+                source: {
+                  type: "base64",
+                  media_type: img.mimeType as
+                    | "image/jpeg"
+                    | "image/png"
+                    | "image/gif"
+                    | "image/webp",
+                  data: img.base64,
+                },
+              }) satisfies ImageBlockParam,
+          ),
+        );
+      }
+
+      const documents = getDocuments(msg.content);
+      if (documents.length > 0) {
+        content.push(
+          ...documents
+            .filter((doc) => doc.mimeType === "application/pdf")
+            .map(
+              (doc) =>
                 ({
-                  type: "tool_use",
-                  id: call.id,
-                  name: call.name,
-                  input: call.arguments,
-                }) satisfies ToolUseBlockParam,
-            ),
-          );
-        }
-        return {
-          role: "assistant",
-          content,
-        };
-
-      case "tool":
-        return {
-          role: "user",
-          content: msg.content.map((r) => ({
-            type: "tool_result",
-            tool_use_id: r.id,
-            content: r.content,
-          })) satisfies Array<ToolResultBlockParam>,
-        } satisfies MessageParam;
-
-      default:
-        if (typeof msg.content === "string") {
-          return {
-            role: "user",
-            content: msg.content,
-          } satisfies MessageParam;
-        } else {
-          const content: Array<
-            TextBlockParam | ImageBlockParam | DocumentBlockParam
-          > = [];
-
-          for (const item of msg.content) {
-            if (item.type === "text") {
-              content.push({
-                type: "text",
-                text: item.text,
-              } satisfies TextBlockParam);
-            } else if (item.type === "file") {
-              const file = item.file;
-              if (file.type === "image") {
-                content.push({
-                  type: "image",
-                  source: {
-                    type: "base64",
-                    media_type: file.mimeType as
-                      | "image/jpeg"
-                      | "image/png"
-                      | "image/gif"
-                      | "image/webp",
-                    data: file.base64,
-                  },
-                } satisfies ImageBlockParam);
-              } else if (
-                file.type === "document" &&
-                file.mimeType === "application/pdf"
-              ) {
-                content.push({
-                  type: "document",
+                  type: "document" as const,
                   source: {
                     type: "base64",
                     media_type: "application/pdf",
-                    data: file.base64,
+                    data: doc.base64,
                   },
-                } satisfies DocumentBlockParam);
-              }
-            }
-          }
+                }) satisfies DocumentBlockParam,
+            ),
+        );
+      }
 
-          return {
-            role: "user",
-            content,
-          } satisfies MessageParam;
-        }
+      return {
+        role: "user",
+        content,
+      } satisfies MessageParam;
     }
   }) satisfies Array<MessageParam>;
 

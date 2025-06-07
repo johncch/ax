@@ -1,6 +1,6 @@
 import { describe, expect, test } from "@jest/globals";
 import { FileInfo } from "../utils/file.js";
-import { Chat } from "./chat.js";
+import { Chat, getFiles, getTextContent } from "./chat.js";
 
 describe("Multimodal Support", () => {
   const mockImageFile: FileInfo = {
@@ -26,10 +26,7 @@ describe("Multimodal Support", () => {
   describe("Chat Integration", () => {
     test("multimodal content structure is preserved", () => {
       const chat = new Chat();
-      chat.addUserWithFiles("Analyze these files", [
-        mockImageFile,
-        mockPdfFile,
-      ]);
+      chat.addUser("Analyze these files", [mockImageFile, mockPdfFile]);
 
       expect(chat.messages).toHaveLength(1);
       const message = chat.messages[0];
@@ -47,15 +44,12 @@ describe("Multimodal Support", () => {
 
     test("helper methods work with multimodal content", () => {
       const chat = new Chat();
-      chat.addUserWithFiles("Look at this image and PDF", [
-        mockImageFile,
-        mockPdfFile,
-      ]);
+      chat.addUser("Look at this image and PDF", [mockImageFile, mockPdfFile]);
 
       const message = chat.messages[0];
       expect(message.role).toBe("user");
-      const text = chat.getTextContent(message.content as any);
-      const files = chat.getFiles(message.content as any);
+      const text = getTextContent(message.content as any);
+      const files = getFiles(message.content as any);
 
       expect(text).toBe("Look at this image and PDF");
       expect(files).toHaveLength(2);
@@ -66,7 +60,7 @@ describe("Multimodal Support", () => {
     test("mixed content types are handled correctly", () => {
       const chat = new Chat();
       chat.addUser("Text only message");
-      chat.addUserWithFiles("Message with image", [mockImageFile]);
+      chat.addUser("Message with image", [mockImageFile]);
 
       expect(chat.messages).toHaveLength(2);
       expect(typeof chat.messages[0].content).toBe("string");
@@ -75,7 +69,7 @@ describe("Multimodal Support", () => {
 
     test("empty file arrays behave like text-only messages", () => {
       const chat = new Chat();
-      chat.addUserWithFiles("Hello", []);
+      chat.addUser("Hello", []);
 
       expect(typeof chat.messages[0].content).toBe("string");
       expect(chat.messages[0].content).toBe("Hello");

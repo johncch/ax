@@ -1,7 +1,7 @@
 import { AxleError } from "../errors/AxleError.js";
 import { AnthropicProvider } from "./anthropic/index.js";
 import { GoogleAIProvider } from "./googleai/index.js";
-import { OllamaProvider } from "./ollama.js";
+import { OllamaProvider } from "./ollama/index.js";
 import { OpenAIProvider } from "./openai/index.js";
 import { AIProviderConfig, OllamaProviderConfig } from "./types.js";
 

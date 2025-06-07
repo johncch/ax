@@ -4,7 +4,6 @@ import chalk from "chalk";
 import dotenv from "dotenv";
 import { Axle, Instruct } from "../src/index.js";
 
-// Load environment variables from .env file
 dotenv.config();
 
 const TEST_MESSAGE =

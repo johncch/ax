@@ -4,7 +4,13 @@ import {
   ResponseInput,
 } from "openai/resources/responses/responses.js";
 import { Recorder } from "../../recorder/recorder.js";
-import { Chat } from "../chat.js";
+import {
+  Chat,
+  getDocuments,
+  getImages,
+  getInstructions,
+  getTextContent,
+} from "../chat.js";
 import { AIRequest, AIResponse, StopReason } from "../types.js";
 import { OpenAIProvider } from "./provider.js";
 
@@ -17,7 +23,7 @@ export class OpenAIResponsesAPI implements AIRequest {
   async execute(runtime: { recorder?: Recorder }): Promise<AIResponse> {
     const { recorder } = runtime;
     const { client, model } = this.provider;
-    const request = prepareResponseRequest(this.chat, model);
+    const request = prepareRequest(this.chat, model);
     recorder?.debug?.heading.log("[Open AI Provider] Using the Responses API");
     recorder?.debug?.log(request);
 
@@ -45,7 +51,7 @@ export class OpenAIResponsesAPI implements AIRequest {
   }
 }
 
-function prepareResponseRequest(
+export function prepareRequest(
   chat: Chat,
   model: string,
 ): ResponseCreateParamsNonStreaming {
@@ -88,28 +94,35 @@ function prepareResponseRequest(
         };
       } else {
         const content: any[] = [];
-        for (const item of msg.content) {
-          if (item.type === "text") {
-            content.push({
-              type: "input_text",
-              text: item.text,
-            });
-          } else if (item.type === "file") {
-            const file = item.file;
-            if (file.type === "image") {
-              content.push({
-                type: "input_image",
-                image_url: `data:${file.mimeType};base64,${file.base64}`,
-              });
-            } else if (file.type === "document") {
-              content.push({
-                type: "input_file",
-                filename: file.path,
-                file_data: `data:${file.mimeType};base64,${file.base64}`,
-              });
-            }
-          }
+        const textContent = getTextContent(msg.content);
+        if (textContent) {
+          content.push({
+            type: "input_text",
+            text: textContent,
+          });
         }
+
+        const images = getImages(msg.content);
+        if (images.length > 0) {
+          content.push(
+            ...images.map((img) => ({
+              type: "input_image",
+              image_url: `data:${img.mimeType};base64,${img.base64}`,
+            })),
+          );
+        }
+
+        const documents = getDocuments(msg.content);
+        if (documents.length > 0) {
+          content.push(
+            ...documents.map((doc) => ({
+              type: "input_file",
+              filename: doc.path,
+              file_data: `data:${doc.mimeType};base64,${doc.base64}`,
+            })),
+          );
+        }
+
         return {
           role: msg.role,
           content,
@@ -123,8 +136,19 @@ function prepareResponseRequest(
     input,
   };
 
-  if (chat.system) {
-    request.instructions = chat.system;
+  const mostRecentMessage = chat.latest();
+  if (mostRecentMessage && mostRecentMessage.role === "user") {
+    let instructions = "";
+    const msgInstructions = getInstructions(mostRecentMessage.content);
+    if (chat.system) {
+      instructions = chat.system;
+    }
+    if (msgInstructions) {
+      instructions = instructions ? `${instructions}\n\n${msgInstructions}` : msgInstructions;
+    }
+    if (instructions) {
+      request.instructions = instructions;
+    }
   }
 
   if (chat.tools.length > 0) {

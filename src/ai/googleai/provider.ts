@@ -1,12 +1,18 @@
-import { Content, FinishReason, GoogleGenAI } from "@google/genai";
-import { Recorder } from "../../recorder/recorder.js";
-
 import {
+  Content,
+  FinishReason,
   GenerateContentConfig,
   GenerateContentResponse,
+  GoogleGenAI,
   Type,
 } from "@google/genai";
-import { Chat } from "../chat.js";
+import { Recorder } from "../../recorder/recorder.js";
+import {
+  Chat,
+  getDocuments,
+  getImages,
+  getTextAndInstructions,
+} from "../chat.js";
 import {
   AIProvider,
   AIRequest,
@@ -52,7 +58,7 @@ class GoogleAIChatRequest implements AIRequest {
     const { recorder } = runtime;
     const { client, model } = this.provider;
 
-    const request = this.prepareRequest(this.chat);
+    const request = prepareRequest(this.chat);
     recorder?.debug?.log(request);
 
     let result: AIResponse;
@@ -78,110 +84,124 @@ class GoogleAIChatRequest implements AIRequest {
     recorder?.debug?.log(result);
     return result;
   }
+}
 
-  private prepareRequest(chat: Chat) {
-    let contents: string | Content[];
+export function prepareRequest(chat: Chat) {
+  let contents: string | Content[];
 
-    if (
-      chat.messages.length === 1 &&
-      chat.messages[0].role == "user" &&
-      typeof chat.messages[0].content === "string"
-    ) {
-      // If there's only one user message with string content, we can send it as a string
-      contents = chat.messages[0].content;
-    } else {
-      contents = chat.messages.map((message) => {
-        if (message.role === "user") {
-          if (typeof message.content === "string") {
-            return { role: "user", parts: [{ text: message.content }] };
-          } else {
-            const parts: any[] = [];
-            for (const item of message.content) {
-              if (item.type === "text") {
-                parts.push({ text: item.text });
-              } else if (item.type === "file") {
-                const file = item.file;
-                if (file.type === "image" || file.type === "document") {
-                  parts.push({
-                    inlineData: {
-                      mimeType: file.mimeType,
-                      data: file.base64,
-                    },
-                  });
-                }
-              }
-            }
-            return { role: "user", parts };
+  if (
+    chat.messages.length === 1 &&
+    chat.messages[0].role == "user" &&
+    typeof chat.messages[0].content === "string"
+  ) {
+    // If there's only one user message with string content, we can send it as a string
+    contents = chat.messages[0].content;
+  } else {
+    contents = chat.messages.map((message) => {
+      if (message.role === "user") {
+        if (typeof message.content === "string") {
+          return { role: "user", parts: [{ text: message.content }] };
+        } else {
+          const parts: any[] = [];
+          const text = getTextAndInstructions(message.content);
+          if (text) {
+            parts.push({ text });
           }
-        } else if (message.role === "assistant") {
-          const results: Content = {
-            role: "assistant",
-            parts: [],
-          };
-          if (message.content) {
-            results.parts.push({ text: message.content });
-          }
-          if (message.toolCalls) {
-            results.parts = results.parts.concat(
-              message.toolCalls.map((item) => {
-                let parsedArgs: Record<string, unknown>;
-                if (typeof item.arguments === "string") {
-                  parsedArgs = JSON.parse(item.arguments) as Record<
-                    string,
-                    unknown
-                  >;
-                } else {
-                  parsedArgs = item.arguments as Record<string, unknown>;
-                }
-                return {
-                  functionCall: {
-                    id: item.id ?? undefined,
-                    name: item.name,
-                    args: parsedArgs,
-                  },
-                };
-              }),
+
+          const images = getImages(message.content);
+          if (images.length > 0) {
+            parts.push(
+              ...images.map((img) => ({
+                inlineData: {
+                  mimeType: img.mimeType,
+                  data: img.base64,
+                },
+              })),
             );
           }
-          return results;
-        } else if (message.role === "tool") {
-          return {
-            role: "user",
-            parts: message.content.map((item) => ({
-              functionResponse: {
-                id: item.id ?? undefined,
-                name: item.name,
-                response: {
-                  output: item.content,
+
+          const documents = getDocuments(message.content);
+          if (documents.length > 0) {
+            parts.push(
+              ...documents.map((doc) => ({
+                inlineData: {
+                  mimeType: doc.mimeType,
+                  data: doc.base64,
                 },
-              },
-            })),
-          };
+              })),
+            );
+          }
+
+          return { role: "user", parts };
         }
-      });
-    }
-
-    const config: GenerateContentConfig = {};
-    if (chat.system) {
-      config.systemInstruction = chat.system;
-    }
-    if (chat.tools.length > 0) {
-      config.tools = chat.tools.map((tool) => ({
-        functionDeclarations: [
-          {
-            name: tool.name,
-            description: tool.description,
-            parameters: {
-              ...tool.parameters,
-              type: Type.OBJECT,
+      } else if (message.role === "assistant") {
+        const results: Content = {
+          role: "assistant",
+          parts: [],
+        };
+        if (message.content !== undefined) {
+          results.parts.push({ text: message.content });
+        }
+        if (message.toolCalls) {
+          results.parts = results.parts.concat(
+            message.toolCalls.map((item) => {
+              let parsedArgs: Record<string, unknown>;
+              if (typeof item.arguments === "string") {
+                parsedArgs = JSON.parse(item.arguments) as Record<
+                  string,
+                  unknown
+                >;
+              } else {
+                parsedArgs = item.arguments as Record<string, unknown>;
+              }
+              return {
+                functionCall: {
+                  id: item.id ?? undefined,
+                  name: item.name,
+                  args: parsedArgs,
+                },
+              };
+            }),
+          );
+        }
+        return results;
+      } else if (message.role === "tool") {
+        return {
+          role: "user",
+          parts: message.content.map((item) => ({
+            functionResponse: {
+              id: item.id ?? undefined,
+              name: item.name,
+              response: {
+                output: item.content,
+              },
             },
-          },
-        ],
-      }));
-    }
-
-    return { contents, config };
+          })),
+        };
+      }
+    });
   }
+
+  const config: GenerateContentConfig = {};
+  if (chat.system) {
+    config.systemInstruction = chat.system;
+  }
+  if (chat.tools.length > 0) {
+    config.tools = chat.tools.map((tool) => ({
+      functionDeclarations: [
+        {
+          name: tool.name,
+          description: tool.description,
+          parameters: {
+            ...tool.parameters,
+            type: Type.OBJECT,
+          },
+        },
+      ],
+    }));
+  }
+
+  return { contents, config };
 }
 
 function translateResponse(

@@ -1,14 +1,18 @@
 import OpenAI from "openai";
 import {
-  ChatCompletionAssistantMessageParam,
+  ChatCompletionContentPart,
+  ChatCompletionCreateParamsNonStreaming,
   ChatCompletionMessageParam,
   ChatCompletionSystemMessageParam,
   ChatCompletionTool,
-  ChatCompletionToolMessageParam,
-  ChatCompletionUserMessageParam,
 } from "openai/resources";
 import { Recorder } from "../../recorder/recorder.js";
-import { Chat } from "../chat.js";
+import {
+  Chat,
+  getDocuments,
+  getImages,
+  getTextAndInstructions,
+} from "../chat.js";
 import { AIRequest, AIResponse, StopReason } from "../types.js";
 import { OpenAIProvider } from "./provider.js";
 
@@ -21,10 +25,10 @@ export class OpenAIChatCompletionRequest implements AIRequest {
   async execute(runtime: { recorder?: Recorder }): Promise<AIResponse> {
     const { recorder } = runtime;
     const { client, model } = this.provider;
-    const request = {
-      model: model,
-      ...prepareRequest(this.chat),
-    };
+    const request = prepareRequest(this.chat, model);
+    recorder?.debug?.heading.log(
+      "[Open AI Provider] Using the ChatCompletion API",
+    );
     recorder?.debug?.log(request);
 
     let result: AIResponse;
@@ -64,7 +68,10 @@ function getStopReason(reason: string) {
   }
 }
 
-function prepareRequest(chat: Chat) {
+export function prepareRequest(
+  chat: Chat,
+  model: string,
+): ChatCompletionCreateParamsNonStreaming {
   const systemMsg: ChatCompletionSystemMessageParam[] = [];
   if (chat.system) {
     systemMsg.push({
@@ -73,83 +80,97 @@ function prepareRequest(chat: Chat) {
     });
   }
 
-  const tools: ChatCompletionTool[] | undefined =
-    chat.tools.length > 0
-      ? chat.tools.map((schema) => {
+  let tools: ChatCompletionTool[] | undefined = undefined;
+  if (chat.tools.length > 0) {
+    tools = chat.tools.map((schema) => {
+      return {
+        type: "function",
+        function: schema,
+      };
+    });
+  }
+
+  const messages: ChatCompletionMessageParam[] = chat.messages
+    .map((msg) => {
+      if (msg.role === "tool") {
+        return msg.content.map((r) => ({
+          role: "tool" as const,
+          tool_call_id: r.id,
+          content: r.content,
+        }));
+      }
+
+      if (msg.role === "assistant") {
+        const toolCalls = msg.toolCalls?.map((call) => {
+          const id = call.id;
           return {
             type: "function",
-            function: schema,
+            function: {
+              name: call.name,
+              arguments:
+                typeof call.arguments === "string"
+                  ? call.arguments
+                  : JSON.stringify(call.arguments),
+            },
+            ...(id && { id }),
           };
-        })
-      : undefined;
+        });
+        return {
+          role: msg.role,
+          content: msg.content,
+          ...(toolCalls && { toolCalls }),
+        };
+      }
 
-  const messages = chat.messages
-    .map((msg) => {
-      switch (msg.role) {
-        case "tool":
-          return msg.content.map((r) => ({
-            role: "tool",
-            tool_call_id: r.id,
-            content: r.content,
-          })) satisfies ChatCompletionToolMessageParam[];
-
-        case "assistant":
-          const toolCalls = msg.toolCalls?.map((call) => {
-            const id = call.id;
-            return {
-              type: "function",
-              function: {
-                name: call.name,
-                arguments:
-                  typeof call.arguments === "string"
-                    ? call.arguments
-                    : JSON.stringify(call.arguments),
-              },
-              ...(id && { id }),
-            };
+      if (typeof msg.content === "string") {
+        return {
+          role: msg.role,
+          content: msg.content,
+        };
+      } else {
+        const content: ChatCompletionContentPart[] = [];
+        const text = getTextAndInstructions(msg.content);
+        if (text) {
+          content.push({
+            type: "text",
+            text,
           });
-          return {
-            role: msg.role,
-            content: msg.content,
-            ...(toolCalls && { toolCalls }),
-          } satisfies ChatCompletionAssistantMessageParam;
+        }
 
-        default:
-          if (typeof msg.content === "string") {
-            return {
-              role: msg.role,
-              content: msg.content,
-            } satisfies ChatCompletionUserMessageParam;
-          } else {
-            const content: any[] = [];
-            for (const item of msg.content) {
-              if (item.type === "text") {
-                content.push({
-                  type: "text",
-                  text: item.text,
-                });
-              } else if (item.type === "file") {
-                const file = item.file;
-                if (file.type === "image") {
-                  content.push({
-                    type: "image_url",
-                    image_url: {
-                      url: `data:${file.mimeType};base64,${file.base64}`,
-                    },
-                  });
-                }
-              }
-            }
-            return {
-              role: msg.role,
-              content,
-            } satisfies ChatCompletionUserMessageParam;
-          }
+        const images = getImages(msg.content);
+        if (images.length > 0) {
+          content.push(
+            ...images.map((img) => ({
+              type: "image_url" as const,
+              image_url: {
+                url: `data:${img.mimeType};base64,${img.base64}`,
+              },
+            })),
+          );
+        }
+
+        const documents = getDocuments(msg.content);
+        if (documents.length > 0) {
+          content.push(
+            ...documents.map((doc) => ({
+              type: "file" as const,
+              file: {
+                filename: doc.name,
+                file_data: `data:${doc.mimeType};base64,${doc.base64}`,
+              },
+            })),
+          );
+        }
+        return {
+          role: msg.role,
+          content,
+        };
       }
     })
-    .flat(Infinity) as Array<ChatCompletionMessageParam>;
+    .flat(1);
 
   return {
+    model,
     messages: [...systemMsg, ...messages],
     ...(tools && { tools }),
   };

@@ -1,6 +1,7 @@
 using:
-  engine: openai
-  model: gpt-4o
+  engine: ollama
+  model: gemma3
+  # model: gpt-4o
   # model: gpt-4o
   # engine: google
 
