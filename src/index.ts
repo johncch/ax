@@ -12,7 +12,6 @@ export { serialWorkflow } from "./workflows/serial.js";
 
 // Export utils
 export { LogLevel } from "./recorder/types.js";
-export { loadFileAsBase64 } from "./utils/file.js";
 export type { FileInfo } from "./utils/file.js";
 
 // Config exports

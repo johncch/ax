@@ -1,7 +1,13 @@
 import { Recorder } from "../recorder/recorder.js";
 import { ToolExecutable } from "../tools/types.js";
 import { Task } from "../types.js";
-import { FileInfo } from "../utils/file.js";
+import {
+  Base64FileInfo,
+  FileInfo,
+  isBase64FileInfo,
+  isTextFileInfo,
+  TextFileInfo,
+} from "../utils/file.js";
 import { replaceVariables } from "../utils/replace.js";
 import {
   ResTypes,
@@ -26,7 +32,8 @@ export abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>>
   system: string | null = null;
   inputs: Record<string, string> = {};
   tools: Record<string, ToolExecutable> = {};
-  files: FileInfo[] = [];
+  files: Base64FileInfo[] = [];
+  textReferences: Array<{ content: string; name?: string }> = [];
 
   resFormat: O;
   rawResponse: string;
@@ -55,15 +62,69 @@ export abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>>
     this.tools[tool.name] = tool;
   }
 
+  /**
+   * Add an image file to the task.
+   * Throws an error if the file type is not "image".
+   * @param file - the Base64FileInfo representing the image file
+   */
   addImage(file: FileInfo) {
     if (file.type !== "image") {
       throw new Error(`Expected image file, got ${file.type}`);
     }
+    const imageFile = file as Base64FileInfo;
+    this.files.push(imageFile);
+  }
+
+  /**
+   * Add a document file to the task.
+   * Throws an error if the file type is not "document".
+   * @param file - the Base64FileInfo representing the document file
+   */
+  addDocument(file: FileInfo) {
+    if (file.type !== "document") {
+      throw new Error(`Expected document file, got ${file.type}`);
+    }
+    const docFile = file as Base64FileInfo;
+    this.files.push(docFile);
+  }
+
+  /**
+   * Add a file to the task. It can be an image or document file.
+   * Throws an error if the file type is not supported.
+   * @param file - the Base64FileInfo representing the document or image file
+   */
+  addFile(file: FileInfo) {
+    if (!isBase64FileInfo(file)) {
+      throw new Error(`Expected image or document file, got ${file.type}`);
+    }
     this.files.push(file);
   }
 
-  addFile(file: FileInfo) {
-    this.files.push(file);
+  /**
+   * Add a text reference to the task.
+   * @param textFile - the TextFileInfo or string content of the reference
+   * @param options - optional name for the reference
+   */
+  addReference(
+    textFile: FileInfo | TextFileInfo | string,
+    options?: { name?: string },
+  ) {
+    if (typeof textFile === "string") {
+      this.textReferences.push({
+        content: textFile,
+        name: options?.name,
+      });
+      return;
+    }
+
+    if (isTextFileInfo(textFile)) {
+      this.textReferences.push({
+        content: textFile.content,
+        name: options?.name ?? textFile.name,
+      });
+    } else {
+      throw new Error(`Expected text file, got ${textFile.type}`);
+    }
   }
 
   hasTools(): boolean {
@@ -106,6 +167,15 @@ export abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>>
     const { recorder, options } = runtime;
     const allVars = { ...variables, ...this.inputs }; // local takes precedence
     let finalPrompt = replaceVariables(this.prompt, allVars);
+
+    if (this.textReferences.length > 0) {
+      finalPrompt += "\n\n";
+      for (const [index, ref] of this.textReferences.entries()) {
+        const referenceTitle = ref.name ? `: ${ref.name}` : "";
+        finalPrompt += `## Reference ${index + 1}${referenceTitle}\n\n\`\`\`${ref.content}\'\'\'\n\n`;
+      }
+    }
+
     if (options?.warnUnused) {
       const unreplaced = finalPrompt.match(/\{\{(.*?)\}\}/g);
       if (unreplaced) {

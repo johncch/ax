@@ -1,6 +1,6 @@
 import YAML from "yaml";
 import { Recorder } from "../../recorder/recorder.js";
-import { loadFile } from "../../utils/file.js";
+import { searchAndLoadFile } from "../../utils/file.js";
 import { isJobConfig } from "./job.js";
 import { isServiceConfig } from "./service.js";
 import { JobConfig, ServiceConfig } from "./types.js";
@@ -15,13 +15,12 @@ export async function getJobConfig(
   },
 ): Promise<JobConfig> {
   const { recorder } = context;
-  const { content, format } = await loadFile({
-    path,
+  const { content, format } = await searchAndLoadFile(path, {
     defaults: {
       name: DEFAULT_JOB_NAME,
       formats: DEFAULT_JOB_FORMATS,
     },
-    loader: "Job File",
+    tag: "Job File",
   });
 
   let result: any = null;
@@ -52,13 +51,12 @@ export async function getServiceConfig(
   },
 ): Promise<ServiceConfig> {
   const { recorder } = context;
-  const { content, format } = await loadFile({
-    path: configPath,
+  const { content, format } = await searchAndLoadFile(configPath, {
     defaults: {
       name: DEFAULT_CONFIG_NAME,
       formats: DEFAULT_CONFIG_FORMATS,
     },
-    loader: "Config File",
+    tag: "Config File",
   });
 
   let result: any = null;

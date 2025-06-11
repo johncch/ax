@@ -4,18 +4,27 @@ import { dirname, extname, resolve } from "node:path";
 import { Recorder } from "../recorder/recorder.js";
 import { FilePathInfo, LoadFileResults } from "./types.js";
 
-export async function loadFile({
-  path,
-  defaults,
-  loader = "File",
-}: {
-  path: string | null;
-  defaults: {
-    name: string;
-    formats: string[];
-  };
-  loader?: string;
-}): Promise<LoadFileResults> {
+/**
+ * CLI Config and Job File uses this function to search and load for files. The defaults
+ * allows for different permutations of name and formats to load.
+ *
+ * @param path - Path provided by the loader. Can be null if not provided by the user.
+ * @param options - Options for loading the file, including defaults and tag.
+ * @param options.defaults - Default name and formats to search for if path is null.
+ * @param options.tag - A tag for error messages, indicating the type of file being loaded.
+ * @returns A promise that resolves to an object containing the file content and format.
+ */
+export async function searchAndLoadFile(
+  path: string | null,
+  options: {
+    defaults: {
+      name: string;
+      formats: string[];
+    };
+    tag: string;
+  },
+): Promise<LoadFileResults> {
+  const { defaults, tag } = options;
   let fileContents: string | null = null;
   let filePath: string = "";
   if (path) {
@@ -23,7 +32,7 @@ export async function loadFile({
       filePath = resolve(path);
       fileContents = await readFile(filePath, { encoding: "utf-8" });
     } catch (e) {
-      throw new Error(`${loader} not found, see --help for details`);
+      throw new Error(`${tag} not found, see --help for details`);
     }
   } else {
     for (const format of defaults.formats) {
@@ -36,7 +45,7 @@ export async function loadFile({
       }
     }
     if (fileContents === null) {
-      throw new Error(`${loader} not found, see --help for details`);
+      throw new Error(`${tag} not found, see --help for details`);
     }
   }
 
@@ -152,23 +161,87 @@ const SUPPORTED_IMAGE_TYPES = [
   ".tiff",
 ];
 const SUPPORTED_DOCUMENT_TYPES = [".pdf"];
+const SUPPORTED_TEXT_TYPES = [".txt", ".md", ".markdown"];
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 export interface FileInfo {
   path: string;
-  base64: string;
+  base64?: string;
+  content?: string;
   mimeType: string;
   size: number;
   name: string;
+  type: "image" | "document" | "text";
+}
+
+export type TextFileInfo = FileInfo & {
+  content: string;
+  base64?: never;
+  type: "text";
+};
+
+export type Base64FileInfo = FileInfo & {
+  base64: string;
+  content?: never;
   type: "image" | "document";
+};
+
+export function isTextFileInfo(fileInfo: FileInfo): fileInfo is TextFileInfo {
+  return fileInfo.type === "text";
+}
+
+export function isBase64FileInfo(
+  fileInfo: FileInfo,
+): fileInfo is Base64FileInfo {
+  return fileInfo.type === "image" || fileInfo.type === "document";
 }
 
 /**
- * Load a file and encode it to base64 with validation
+ * Detect the appropriate encoding for a file based on its extension
  * @param filePath - Path to the file
- * @returns FileInfo object with base64 data and metadata
+ * @returns "utf-8" for text files, "base64" for binary files
  */
-export async function loadFileAsBase64(filePath: string): Promise<FileInfo> {
+export function getEncodingForFile(filePath: string): "utf-8" | "base64" {
+  const ext = extname(filePath).toLowerCase();
+
+  if (SUPPORTED_TEXT_TYPES.includes(ext)) {
+    return "utf-8";
+  } else if (
+    SUPPORTED_IMAGE_TYPES.includes(ext) ||
+    SUPPORTED_DOCUMENT_TYPES.includes(ext)
+  ) {
+    return "base64";
+  } else {
+    const allSupportedTypes = [
+      ...SUPPORTED_TEXT_TYPES,
+      ...SUPPORTED_IMAGE_TYPES,
+      ...SUPPORTED_DOCUMENT_TYPES,
+    ];
+    throw new Error(
+      `Unsupported file type: ${ext}. Supported types: ${allSupportedTypes.join(", ")}`,
+    );
+  }
+}
+
+/**
+ * Load a file with the specified encoding or auto-detect based on file extension
+ * @param filePath - Path to the file
+ * @param encoding - How to load the file: "utf-8" for text, "base64" for binary, or omit for auto-detection
+ * @returns FileInfo object with appropriate content based on encoding
+ */
+export async function loadFileContent(filePath: string): Promise<FileInfo>;
+export async function loadFileContent(
+  filePath: string,
+  encoding: "utf-8",
+): Promise<TextFileInfo>;
+export async function loadFileContent(
+  filePath: string,
+  encoding: "base64",
+): Promise<Base64FileInfo>;
+export async function loadFileContent(
+  filePath: string,
+  encoding?: "utf-8" | "base64",
+): Promise<FileInfo> {
   const resolvedPath = resolve(filePath);
 
   try {
@@ -186,53 +259,87 @@ export async function loadFileAsBase64(filePath: string): Promise<FileInfo> {
   }
 
   const ext = extname(resolvedPath).toLowerCase();
+  const fileName = resolvedPath.split("/").pop() || "";
+  const actualEncoding = encoding || getEncodingForFile(resolvedPath);
 
-  let type: "image" | "document";
-  let mimeType: string;
+  if (actualEncoding === "utf-8") {
+    if (!SUPPORTED_TEXT_TYPES.includes(ext)) {
+      throw new Error(
+        `Unsupported text file type: ${ext}. Supported types: ${SUPPORTED_TEXT_TYPES.join(", ")}`,
+      );
+    }
 
-  if (SUPPORTED_IMAGE_TYPES.includes(ext)) {
-    type = "image";
+    let mimeType: string;
     switch (ext) {
-      case ".jpg":
-      case ".jpeg":
-        mimeType = "image/jpeg";
+      case ".txt":
+        mimeType = "text/plain";
         break;
-      case ".png":
-        mimeType = "image/png";
-        break;
-      case ".gif":
-        mimeType = "image/gif";
-        break;
-      case ".webp":
-        mimeType = "image/webp";
-        break;
-      case ".bmp":
-        mimeType = "image/bmp";
-        break;
-      case ".tiff":
-        mimeType = "image/tiff";
+      case ".md":
+      case ".markdown":
+        mimeType = "text/markdown";
         break;
       default:
-        mimeType = "image/jpeg";
+        mimeType = "text/plain";
     }
-  } else if (SUPPORTED_DOCUMENT_TYPES.includes(ext)) {
-    type = "document";
-    mimeType = "application/pdf";
+
+    const content = await readFile(resolvedPath, "utf-8");
+
+    return {
+      path: resolvedPath,
+      content,
+      mimeType,
+      size: stats.size,
+      name: fileName,
+      type: "text",
+    };
   } else {
-    throw new Error(
-      `Unsupported file type: ${ext}. Supported types: ${[...SUPPORTED_IMAGE_TYPES, ...SUPPORTED_DOCUMENT_TYPES].join(", ")}`,
-    );
+    let type: "image" | "document";
+    let mimeType: string;
+
+    if (SUPPORTED_IMAGE_TYPES.includes(ext)) {
+      type = "image";
+      switch (ext) {
+        case ".jpg":
+        case ".jpeg":
+          mimeType = "image/jpeg";
+          break;
+        case ".png":
+          mimeType = "image/png";
+          break;
+        case ".gif":
+          mimeType = "image/gif";
+          break;
+        case ".webp":
+          mimeType = "image/webp";
+          break;
+        case ".bmp":
+          mimeType = "image/bmp";
+          break;
+        case ".tiff":
+          mimeType = "image/tiff";
+          break;
+        default:
+          mimeType = "image/jpeg";
+      }
+    } else if (SUPPORTED_DOCUMENT_TYPES.includes(ext)) {
+      type = "document";
+      mimeType = "application/pdf";
+    } else {
+      throw new Error(
+        `Unsupported file type: ${ext}. Supported types: ${[...SUPPORTED_IMAGE_TYPES, ...SUPPORTED_DOCUMENT_TYPES].join(", ")}`,
+      );
+    }
+
+    const fileBuffer = await readFile(resolvedPath);
+    const base64 = fileBuffer.toString("base64");
+
+    return {
+      path: resolvedPath,
+      base64,
+      mimeType,
+      size: stats.size,
+      name: fileName,
+      type,
+    };
   }
-
-  const fileBuffer = await readFile(resolvedPath);
-  const base64 = fileBuffer.toString("base64");
-
-  return {
-    path: resolvedPath,
-    base64,
-    mimeType,
-    size: stats.size,
-    name: resolvedPath.split("/").pop() || "",
-    type,
-  };
 }

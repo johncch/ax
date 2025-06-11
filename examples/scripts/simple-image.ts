@@ -4,7 +4,7 @@ import { getAxle } from "./helper.js";
 config();
 
 async function analyzeImage() {
-  const imageFile = await Axle.loadFile(
+  const imageFile = await Axle.loadFileContent(
     "./examples/data/economist-brainy-imports.png",
   );
 

@@ -4,7 +4,12 @@ import { AxleError } from "../errors/index.js";
 import { Recorder } from "../recorder/recorder.js";
 import { RecorderWriter } from "../recorder/types.js";
 import { Task } from "../types.js";
-import { FileInfo, loadFileAsBase64 } from "../utils/file.js";
+import {
+  Base64FileInfo,
+  FileInfo,
+  TextFileInfo,
+  loadFileContent,
+} from "../utils/file.js";
 import { dagWorkflow } from "../workflows/dag.js";
 import { serialWorkflow } from "../workflows/serial.js";
 import {
@@ -111,11 +116,30 @@ export class Axle {
   }
 
   /**
-   * Load a file and encode it to base64 for use with multimodal models
-   * @param filePath - Path to the image or PDF file
-   * @returns FileInfo object with base64 data and metadata
+   * Load a file with the specified encoding or auto-detect based on file extension
+   * @param filePath - Path to the file
+   * @param encoding - How to load the file: "utf-8" for text, "base64" for binary, or omit for auto-detection
+   * @returns FileInfo object with appropriate content based on encoding
    */
-  static async loadFile(filePath: string): Promise<FileInfo> {
-    return loadFileAsBase64(filePath);
+  static async loadFileContent(filePath: string): Promise<FileInfo>;
+  static async loadFileContent(
+    filePath: string,
+    encoding: "utf-8",
+  ): Promise<TextFileInfo>;
+  static async loadFileContent(
+    filePath: string,
+    encoding: "base64",
+  ): Promise<Base64FileInfo>;
+  static async loadFileContent(
+    filePath: string,
+    encoding?: "utf-8" | "base64",
+  ): Promise<FileInfo> {
+    if (encoding === "utf-8") {
+      return loadFileContent(filePath, "utf-8");
+    } else if (encoding === "base64") {
+      return loadFileContent(filePath, "base64");
+    } else {
+      return loadFileContent(filePath);
+    }
   }
 }

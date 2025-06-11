@@ -74,18 +74,23 @@ declare class Recorder {
 
 interface FileInfo {
     path: string;
-    base64: string;
+    base64?: string;
+    content?: string;
     mimeType: string;
     size: number;
     name: string;
-    type: "image" | "document";
+    type: "image" | "document" | "text";
 }
-/**
- * Load a file and encode it to base64 with validation
- * @param filePath - Path to the file
- * @returns FileInfo object with base64 data and metadata
- */
-declare function loadFileAsBase64(filePath: string): Promise<FileInfo>;
+type TextFileInfo = FileInfo & {
+    content: string;
+    base64?: never;
+    type: "text";
+};
+type Base64FileInfo = FileInfo & {
+    base64: string;
+    content?: never;
+    type: "image" | "document";
+};
 
 interface ToolSchema {
     name: string;
@@ -301,11 +306,14 @@ declare class Axle {
     executeDAG(dagDefinition: DAGDefinition, variables?: Record<string, any>, options?: DAGWorkflowOptions): Promise<WorkflowResult>;
     get logs(): RecorderEntry[];
     /**
-     * Load a file and encode it to base64 for use with multimodal models
-     * @param filePath - Path to the image or PDF file
-     * @returns FileInfo object with base64 data and metadata
+     * Load a file with the specified encoding or auto-detect based on file extension
+     * @param filePath - Path to the file
+     * @param encoding - How to load the file: "utf-8" for text, "base64" for binary, or omit for auto-detection
+     * @returns FileInfo object with appropriate content based on encoding
      */
-    static loadFile(filePath: string): Promise<FileInfo>;
+    static loadFileContent(filePath: string): Promise<FileInfo>;
+    static loadFileContent(filePath: string, encoding: "utf-8"): Promise<TextFileInfo>;
+    static loadFileContent(filePath: string, encoding: "base64"): Promise<Base64FileInfo>;
 }
 
 declare enum ResTypes {
@@ -327,7 +335,11 @@ declare abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>
     system: string | null;
     inputs: Record<string, string>;
     tools: Record<string, ToolExecutable>;
-    files: FileInfo[];
+    files: Base64FileInfo[];
+    textReferences: Array<{
+        content: string;
+        name?: string;
+    }>;
     resFormat: O;
     rawResponse: string;
     finalPrompt: string;
@@ -336,8 +348,32 @@ declare abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>
     addInput(name: string, value: string): void;
     addTools(tools: ToolExecutable[]): void;
     addTool(tool: ToolExecutable): void;
+    /**
+     * Add an image file to the task.
+     * Throws an error if the file type is not "image".
+     * @param file - the Base64FileInfo representing the image file
+     */
     addImage(file: FileInfo): void;
+    /**
+     * Add a document file to the task.
+     * Throws an error if the file type is not "document".
+     * @param file - the Base64FileInfo representing the document file
+     */
+    addDocument(file: FileInfo): void;
+    /**
+     * Add a file to the task. It can be an image or document file.
+     * Throws an error if the file type is not supported.
+     * @param file - the Base64FileInfo representing the document or image file
+     */
     addFile(file: FileInfo): void;
+    /**
+     * Add a text reference to the task.
+     * @param textFile - the TextFileInfo or string content of the reference
+     * @param options - optional name for the reference
+     */
+    addReference(textFile: FileInfo | TextFileInfo | string, options?: {
+        name?: string;
+    }): void;
     hasTools(): boolean;
     hasFiles(): boolean;
     get result(): StructuredOutput<O>;
@@ -454,6 +490,7 @@ interface ChatStep extends StepBase {
     tools?: string[];
     images?: ImageReference[];
     documents?: DocumentReference[];
+    references?: TextFileReference[];
 }
 interface WriteToDiskStep extends StepBase {
     uses: "write-to-disk";
@@ -469,6 +506,9 @@ interface ImageReference {
     file: string;
 }
 interface DocumentReference {
+    file: string;
+}
+interface TextFileReference {
     file: string;
 }
 
@@ -489,4 +529,4 @@ interface SerialWorkflow {
 }
 declare const serialWorkflow: SerialWorkflow;
 
-export { type AIProvider, Axle, ChainOfThought, type DAGDefinition, type DAGWorkflowOptions, type FileInfo, Instruct, LogLevel, type SerializedExecutionResponse, WriteOutputTask, concurrentWorkflow, dagWorkflow, loadFileAsBase64, serialWorkflow };
+export { type AIProvider, Axle, ChainOfThought, type DAGDefinition, type DAGWorkflowOptions, type FileInfo, Instruct, LogLevel, type SerializedExecutionResponse, WriteOutputTask, concurrentWorkflow, dagWorkflow, serialWorkflow };

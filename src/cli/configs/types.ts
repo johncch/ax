@@ -81,6 +81,7 @@ export interface ChatStep extends StepBase {
   tools?: string[];
   images?: ImageReference[];
   documents?: DocumentReference[];
+  references?: TextFileReference[];
 }
 
 export interface WriteToDiskStep extends StepBase {
@@ -100,5 +101,9 @@ export interface ImageReference {
 }
 
 export interface DocumentReference {
+  file: string;
+}
+
+export interface TextFileReference {
   file: string;
 }

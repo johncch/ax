@@ -12,6 +12,7 @@ import {
   SerialJob,
   SkipOptions,
   Step,
+  TextFileReference,
   ValidationError,
   WriteToDiskStep,
 } from "./types.js";
@@ -460,6 +461,22 @@ export function isChatStep(
     }
   }
 
+  // Check references if provided
+  if (obj.references !== undefined) {
+    if (!Array.isArray(obj.references)) {
+      if (errVal) errVal.value = "Property 'references' must be an array";
+      return false;
+    }
+
+    for (let i = 0; i < obj.references.length; i++) {
+      if (!isTextFileReference(obj.references[i], errVal)) {
+        if (errVal)
+          errVal.value = `Invalid reference at index ${i}: ${errVal?.value}`;
+        return false;
+      }
+    }
+  }
+
   return true;
 }
 
@@ -540,6 +557,23 @@ export function isDocumentReference(
   obj: any,
   errVal?: ValidationError,
 ): obj is DocumentReference {
+  if (!obj || typeof obj !== "object") {
+    if (errVal) errVal.value = "Not an object";
+    return false;
+  }
+
+  if (typeof obj.file !== "string") {
+    if (errVal) errVal.value = "Property 'file' must be a string";
+    return false;
+  }
+
+  return true;
+}
+
+export function isTextFileReference(
+  obj: any,
+  errVal?: ValidationError,
+): obj is TextFileReference {
   if (!obj || typeof obj !== "object") {
     if (errVal) errVal.value = "Not an object";
     return false;

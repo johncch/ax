@@ -1,0 +1,17 @@
+using:
+  engine: googleai
+
+jobs:
+  text-references:
+    type: serial
+    steps:
+      - uses: chat
+        message: |
+          Based on the provided documents, create a comprehensive summary that identifies the main ethical concerns about AI and suggests concrete action items for addressing them.
+        output:
+          summary: "string"
+          concerns: "string[]"
+          actionItems: "string[]"
+        references:
+          - file: examples/data/meeting_notes.md
+          - file: examples/data/research_paper.md
