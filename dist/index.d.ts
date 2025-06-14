@@ -495,7 +495,7 @@ interface ChatStep extends StepBase {
 interface WriteToDiskStep extends StepBase {
     uses: "write-to-disk";
     output: string;
-    keys: string | string[];
+    keys?: string | string[];
 }
 interface Replace {
     source: "file";

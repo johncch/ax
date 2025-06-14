@@ -1,10 +1,9 @@
+# yaml-language-server: $schema=../schemas/v1/job.yaml
 using:
   engine: openai
 
 jobs:
   batch-research:
-    type: batch
-
     batch:
       - type: files
         source: ./input/*.txt

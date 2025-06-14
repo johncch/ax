@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../schemas/v1/job.yaml
 using:
   # engine: openai
   # engine: google
@@ -7,7 +8,6 @@ using:
 
 jobs:
   calculate:
-    type: serial
     steps:
       - uses: chat
         message: |

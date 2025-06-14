@@ -1,9 +1,9 @@
+# yaml-language-server: $schema=../schemas/v1/job.yaml
 using:
   engine: anthropic
 
 jobs:
   update-code:
-    type: serial
     steps:
       - uses: chat
         system: |
@@ -18,7 +18,7 @@ jobs:
         replace:
           - pattern: ${input}
             source: file
-            name: ./src/utils/job.ts
+            files: ./src/utils/job.ts
       - uses: chat
         message: |
           Generate code that checks the type of all interfaces in the code below. The function names should be of the form `isJobConfig` and use if else statements instead of chaining ternary operators.

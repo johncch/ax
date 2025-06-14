@@ -2,6 +2,7 @@ import { ResTypeStrings } from "../../core/types.js";
 import {
   AIProviderUse,
   BatchJob,
+  BatchOptions,
   ChatStep,
   DAGJob,
   DocumentReference,
@@ -239,46 +240,10 @@ export function isBatchJob(
   }
 
   for (let i = 0; i < obj.batch.length; i++) {
-    const batchItem = obj.batch[i];
-
-    if (!batchItem || typeof batchItem !== "object") {
-      if (errVal) errVal.value = `Batch item at index ${i} must be an object`;
-      return false;
-    }
-
-    if (batchItem.type !== "files") {
+    if (!isBatchOptions(obj.batch[i], errVal)) {
       if (errVal)
-        errVal.value = `Batch item at index ${i} must have type 'files'`;
+        errVal.value = `Invalid batch item at index ${i}: ${errVal?.value}`;
       return false;
-    }
-
-    if (typeof batchItem.source !== "string") {
-      if (errVal)
-        errVal.value = `Batch item at index ${i} must have a string 'source' property`;
-      return false;
-    }
-
-    if (typeof batchItem.bind !== "string") {
-      if (errVal)
-        errVal.value = `Batch item at index ${i} must have a string 'bind' property`;
-      return false;
-    }
-
-    // Check skip-if if provided
-    if (batchItem["skip-if"] !== undefined) {
-      if (!Array.isArray(batchItem["skip-if"])) {
-        if (errVal)
-          errVal.value = `Batch item at index ${i} must have an array 'skip-if' property`;
-        return false;
-      }
-
-      for (let j = 0; j < batchItem["skip-if"].length; j++) {
-        if (!isSkipOptions(batchItem["skip-if"][j], errVal)) {
-          if (errVal)
-            errVal.value = `Invalid skip condition at index ${j} in batch item ${i}: ${errVal?.value}`;
-          return false;
-        }
-      }
     }
   }
 
@@ -292,6 +257,49 @@ export function isBatchJob(
     if (!isStep(obj.steps[i], errVal)) {
       if (errVal) errVal.value = `Invalid step at index ${i}: ${errVal?.value}`;
       return false;
+    }
+  }
+
+  return true;
+}
+
+export function isBatchOptions(
+  obj: any,
+  errVal?: ValidationError,
+): obj is BatchOptions {
+  if (!obj || typeof obj !== "object") {
+    if (errVal) errVal.value = "Not an object";
+    return false;
+  }
+
+  if (obj.type !== "files") {
+    if (errVal) errVal.value = "Property 'type' must be 'files'";
+    return false;
+  }
+
+  if (typeof obj.source !== "string") {
+    if (errVal) errVal.value = "Property 'source' must be a string";
+    return false;
+  }
+
+  if (typeof obj.bind !== "string") {
+    if (errVal) errVal.value = "Property 'bind' must be a string";
+    return false;
+  }
+
+  // Check skip-if if provided
+  if (obj["skip-if"] !== undefined) {
+    if (!Array.isArray(obj["skip-if"])) {
+      if (errVal) errVal.value = "Property 'skip-if' must be an array";
+      return false;
+    }
+
+    for (let j = 0; j < obj["skip-if"].length; j++) {
+      if (!isSkipOptions(obj["skip-if"][j], errVal)) {
+        if (errVal)
+          errVal.value = `Invalid skip condition at index ${j}: ${errVal?.value}`;
+        return false;
+      }
     }
   }
 
@@ -497,6 +505,24 @@ export function isWriteToDiskStep(
   if (typeof obj.output !== "string") {
     if (errVal) errVal.value = "Property 'output' must be a string";
     return false;
+  }
+
+  // Check keys if provided
+  if (obj.keys !== undefined) {
+    if (typeof obj.keys === "string") {
+      // Single key is valid
+    } else if (Array.isArray(obj.keys)) {
+      for (let i = 0; i < obj.keys.length; i++) {
+        if (typeof obj.keys[i] !== "string") {
+          if (errVal) errVal.value = `Key at index ${i} must be a string`;
+          return false;
+        }
+      }
+    } else {
+      if (errVal)
+        errVal.value = "Property 'keys' must be a string or array of strings";
+      return false;
+    }
   }
 
   return true;
