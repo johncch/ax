@@ -1,3 +1,4 @@
+import * as z from "zod/v4";
 import { Recorder } from "../recorder/recorder.js";
 import { ToolExecutable } from "../tools/types.js";
 import { Task } from "../types.js";
@@ -9,24 +10,11 @@ import {
   TextFileInfo,
 } from "../utils/file.js";
 import { replaceVariables } from "../utils/replace.js";
-import {
-  ResTypes,
-  ResTypeStrings,
-  StringToType,
-  StructuredOutput,
-} from "./types.js";
+import { zodToExample } from "./typecheck.js";
+import { InferedOutputSchema, OutputSchema } from "./types.js";
 
-type DefaultResFormatType = { response: ResTypes.String };
-export const DEFAULT_OUTPUT_VALUE: DefaultResFormatType = {
-  response: ResTypes.String,
-};
-
-export abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>>
-  implements Task
-{
+export abstract class AbstractInstruct<T extends OutputSchema> implements Task {
   readonly type = "instruct";
-
-  protected _result: StructuredOutput<O> | undefined = undefined;
 
   prompt: string;
   system: string | null = null;
@@ -34,14 +22,21 @@ export abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>>
   tools: Record<string, ToolExecutable> = {};
   files: Base64FileInfo[] = [];
   textReferences: Array<{ content: string; name?: string }> = [];
+  instructions: string[] = [];
 
-  resFormat: O;
+  schema: T;
   rawResponse: string;
-  finalPrompt: string;
+  protected _taggedSections:
+    | {
+        tags: Record<string, string>;
+        remaining: string;
+      }
+    | undefined = undefined;
+  protected _result: InferedOutputSchema<T> | undefined = undefined;
 
-  protected constructor(prompt: string, resFormat: O) {
+  protected constructor(prompt: string, schema: T) {
     this.prompt = prompt;
-    this.resFormat = resFormat;
+    this.schema = schema;
   }
 
   setInputs(inputs: Record<string, string>) {
@@ -62,11 +57,6 @@ export abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>>
     this.tools[tool.name] = tool;
   }
 
-  /**
-   * Add an image file to the task.
-   * Throws an error if the file type is not "image".
-   * @param file - the Base64FileInfo representing the image file
-   */
   addImage(file: FileInfo) {
     if (file.type !== "image") {
       throw new Error(`Expected image file, got ${file.type}`);
@@ -75,11 +65,6 @@ export abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>>
     this.files.push(imageFile);
   }
 
-  /**
-   * Add a document file to the task.
-   * Throws an error if the file type is not "document".
-   * @param file - the Base64FileInfo representing the document file
-   */
   addDocument(file: FileInfo) {
     if (file.type !== "document") {
       throw new Error(`Expected document file, got ${file.type}`);
@@ -88,11 +73,6 @@ export abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>>
     this.files.push(docFile);
   }
 
-  /**
-   * Add a file to the task. It can be an image or document file.
-   * Throws an error if the file type is not supported.
-   * @param file - the Base64FileInfo representing the document or image file
-   */
   addFile(file: FileInfo) {
     if (!isBase64FileInfo(file)) {
       throw new Error(`Expected image or document file, got ${file.type}`);
@@ -100,11 +80,6 @@ export abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>>
     this.files.push(file);
   }
 
-  /**
-   * Add a text reference to the task.
-   * @param textFile - the TextFileInfo or string content of the reference
-   * @param options - optional name for the reference
-   */
   addReference(
     textFile: FileInfo | TextFileInfo | string,
     options?: { name?: string },
@@ -127,6 +102,13 @@ export abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>>
     }
   }
 
+  addInstructions(instruction: string) {
+    if (typeof instruction !== "string" || instruction.trim() === "") {
+      throw new Error("Instruction must be a non-empty string");
+    }
+    this.instructions.push(instruction);
+  }
+
   hasTools(): boolean {
     return Object.keys(this.tools).length > 0;
   }
@@ -135,11 +117,9 @@ export abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>>
     return this.files.length > 0;
   }
 
-  get result() {
+  get result(): InferedOutputSchema<T> | undefined {
     return this._result;
   }
-
-  //# Prompt related functions
 
   compile(
     variables: Record<string, string>,
@@ -148,8 +128,8 @@ export abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>>
       options?: { warnUnused?: boolean };
     } = {},
   ): { message: string; instructions: string } {
-    const userPrompt = this.getFinalUserPrompt(variables, runtime);
-    const instructionPrompt = this.getFormatInstructions();
+    const userPrompt = this.createUserMessage(variables, runtime);
+    const instructionPrompt = this.createInstructions();
 
     return {
       message: userPrompt,
@@ -157,7 +137,7 @@ export abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>>
     };
   }
 
-  protected getFinalUserPrompt(
+  protected createUserMessage(
     variables: Record<string, string>,
     runtime: {
       recorder?: Recorder;
@@ -165,14 +145,13 @@ export abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>>
     } = {},
   ): string {
     const { recorder, options } = runtime;
-    const allVars = { ...variables, ...this.inputs }; // local takes precedence
+    const allVars = { ...variables, ...this.inputs };
     let finalPrompt = replaceVariables(this.prompt, allVars);
 
     if (this.textReferences.length > 0) {
-      finalPrompt += "\n\n";
       for (const [index, ref] of this.textReferences.entries()) {
         const referenceTitle = ref.name ? `: ${ref.name}` : "";
-        finalPrompt += `## Reference ${index + 1}${referenceTitle}\n\n\`\`\`${ref.content}\'\'\'\n\n`;
+        finalPrompt += `\n\n## Reference ${index + 1}${referenceTitle}\n\n\`\`\`${ref.content}\'\'\'`;
       }
     }
 
@@ -188,85 +167,180 @@ export abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>>
     return finalPrompt;
   }
 
-  protected getFormatInstructions(): string {
-    let prompt = "";
-    for (const [key, value] of Object.entries(this.resFormat)) {
-      const typeString = value;
-      switch (typeString) {
-        case ResTypes.String:
-          prompt += `Use <${key}></${key}> to indicate the answer for ${key}. The answer must be a string.\n`;
-          break;
-        case ResTypes.Number:
-          prompt += `Use <${key}></${key}> to indicate the answer for ${key}. the answer must be a number.\n`;
-          break;
-        case ResTypes.Boolean:
-          prompt += `Use <${key}></${key}> to indicate the answer for ${key}. The answer must be a true/false.\n`;
-          break;
-        case ResTypes.List:
-          prompt += `Use <${key}></${key}> to indicate the answer for ${key}. The answer must be a list of strings. Each string should be in a new line.\n`;
-          break;
+  protected createInstructions(instructions: string = ""): string {
+    instructions = "# Instructions\n\n" + instructions;
+
+    const schemaKeys = Object.keys(this.schema);
+    if (schemaKeys.length > 0) {
+      instructions += "## Output Format Instructions\n";
+      instructions +=
+        "\nHere is how you should format your output. Follow the instructions strictly.\n";
+
+      for (const [key, fieldSchema] of Object.entries(this.schema)) {
+        const fieldInstructions = this.generateFieldInstructions(
+          key,
+          fieldSchema,
+        );
+        instructions += fieldInstructions;
       }
     }
-    return prompt;
+
+    if (this.instructions.length > 0) {
+      instructions += "\n## Additional Instructions\n\n";
+      for (const instruction of this.instructions) {
+        instructions += `- ${instruction}\n`;
+      }
+    }
+
+    return instructions;
   }
 
-  //# Final answer parsing
+  protected generateFieldInstructions(
+    key: string,
+    schema: z.ZodTypeAny,
+  ): string {
+    const [value, example] = zodToExample(schema);
+    return `\n- Use <${key}></${key}> tags to indicate the answer for ${key}. The answer must be a ${value}.\n  Example: <${key}>${JSON.stringify(example)}</${key}>\n`;
+  }
 
-  /**
-   *
-   * @param rawValue - the raw value from the AI
-   * @param taggedSections - optional, for overrides to use
-   * @returns - the parsed result
-   */
   finalize(
     rawValue: string,
-    taggedSections?: { tags: Record<string, string>; remaining: string },
-  ): StructuredOutput<O> {
+    runtime: { recorder?: Recorder } = {},
+  ): InferedOutputSchema<T> {
+    const { recorder } = runtime;
     this.rawResponse = rawValue;
-    const result: any = {};
-    const keys = Object.keys(this.resFormat) as Array<keyof O>;
 
-    if (keys.length === 0) {
+    // Handle empty schema case
+    const schemaKeys = Object.keys(this.schema);
+    if (schemaKeys.length === 0) {
       if (rawValue.trim() === "{}" || rawValue.trim() === "") {
-        return {} as StructuredOutput<O>;
+        this._result = {} as InferedOutputSchema<T>;
+        return this._result;
       }
       throw new Error(
-        "Output format is empty, but rawValue is not an empty object representation or empty string.",
+        "Schema is empty, but rawValue is not an empty object representation or empty string.",
       );
     }
 
-    taggedSections = taggedSections || this.parseTaggedSections(rawValue);
+    this._taggedSections =
+      this._taggedSections || this.parseTaggedSections(rawValue);
 
-    for (const key of keys) {
-      const k = key as string;
-      let value: string;
-      const tagContent = taggedSections.tags[k];
-
-      if (tagContent) {
-        value = tagContent;
-      } else {
-        throw new Error(`Expected results with tag ${k} but it does not exist`);
-      }
-
-      const typeString = this.resFormat[key];
-      try {
-        const processedValue = this.typeResponses(typeString, value);
-        result[key] = processedValue;
-      } catch (e) {
+    const parseInput: any = {};
+    for (const [key, fieldSchema] of Object.entries(this.schema)) {
+      const tagContent = this._taggedSections.tags[key];
+      if (tagContent !== undefined) {
+        parseInput[key] = this.preprocessValue(fieldSchema, tagContent);
+      } else if (fieldSchema.def.type !== "optional") {
         throw new Error(
-          `Cannot convert value of key ${k} to ${typeString}: ${e.message}`,
+          `Expected results with tag ${key} but it does not exist`,
         );
       }
     }
 
-    this._result = result;
-    return result as StructuredOutput<O>;
+    try {
+      const validatedResult: any = {};
+      for (const [key, fieldSchema] of Object.entries(this.schema)) {
+        if (key in parseInput) {
+          validatedResult[key] = fieldSchema.parse(parseInput[key]);
+        }
+      }
+
+      this._result = validatedResult as InferedOutputSchema<T>;
+      return this._result;
+    } catch (error) {
+      if (error && typeof error === "object" && "issues" in error) {
+        const formattedErrors = (error as any).issues
+          .map((err: any) => `${err.path.join(".")}: ${err.message}`)
+          .join(", ");
+        throw new Error(`Validation failed: ${formattedErrors}`);
+      }
+      throw error;
+    }
+  }
+
+  private preprocessValue(schema: z.ZodTypeAny, rawValue: string): any {
+    rawValue = rawValue.trim();
+    switch (schema.def.type) {
+      case "string":
+        try {
+          const parsed = JSON.parse(rawValue);
+          return parsed;
+        } catch (e) {
+          if (typeof rawValue === "string") {
+            return rawValue;
+          }
+          throw new Error(
+            `Cannot parse '${rawValue}' as string. Ensure it is a valid JSON string or a plain string.`,
+          );
+        }
+      case "number": {
+        const parsed = parseFloat(rawValue);
+        if (isNaN(parsed)) {
+          throw new Error(`Cannot parse '${rawValue}' as number`);
+        }
+        return parsed;
+      }
+      case "boolean": {
+        const lowerValue = rawValue.toLowerCase();
+        if (lowerValue === "true") return true;
+        if (lowerValue === "false") return false;
+        throw new Error(
+          `Cannot parse '${rawValue}' as boolean. Expected 'true' or 'false'`,
+        );
+      }
+      case "array": {
+        if (rawValue === "") return [];
+        try {
+          const parsed = JSON.parse(rawValue);
+          if (Array.isArray(parsed)) {
+            return parsed;
+          }
+        } catch (e) {
+          // If JSON parsing fails, fall back to line-by-line parsing
+        }
+
+        if (rawValue.includes(",")) {
+          return rawValue
+            .split(",")
+            .map((s) => {
+              const trimmed = s.trim();
+              try {
+                return JSON.parse(trimmed);
+              } catch (e) {
+                return trimmed;
+              }
+            })
+            .filter((item) => item !== "");
+        }
+      }
+      case "object": {
+        if (rawValue.includes("```json")) {
+          rawValue = rawValue.replace(/```json/g, "").replace(/```/g, "");
+        }
+        try {
+          const parsed = JSON.parse(rawValue);
+          return parsed;
+        } catch (error) {
+          throw new Error(`Cannot parse object as JSON: ${error.message}`);
+        }
+      }
+      case "optional": {
+        const innerSchema = (schema as any).def.innerType as z.ZodTypeAny;
+        return this.preprocessValue(innerSchema, rawValue);
+      }
+      default:
+        return rawValue;
+    }
   }
 
   protected parseTaggedSections(input: string): {
     tags: Record<string, string>;
     remaining: string;
   } {
+    // Unwrap JSON code blocks (this is mostly for smaller models)
+    if (input.trim().startsWith("```json") && input.trim().endsWith("```")) {
+      input = input.trim().slice(7, -3).trim(); // Remove ```json from start and ``` from end
+    }
     const tagRegex = /<(\w+)>(.*?)<\/\1>/gs;
     const tags: Record<string, string> = {};
     let remaining = input;
@@ -276,53 +350,16 @@ export abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>>
       return "";
     });
 
+    // This is also for smaller models when they open but don't close the tags.
+    const tagRegexPartial = /<(\w+)>(.*?)(?:<\/?\w+>|$)/gs;
+    remaining = remaining.replace(tagRegexPartial, (_match, tag, content) => {
+      tags[tag] = content;
+      return "";
+    });
+
     return {
       tags,
       remaining: remaining.trim(),
     };
-  }
-
-  protected typeResponses(
-    typeString: ResTypeStrings,
-    rawValue: string,
-  ): StringToType<ResTypes> {
-    let processedValue: StringToType<ResTypes>;
-    switch (typeString) {
-      case ResTypes.String:
-        processedValue = rawValue;
-        break;
-      case ResTypes.Number:
-        processedValue = parseFloat(rawValue);
-        if (isNaN(processedValue)) {
-          throw new Error(
-            `Cannot parse '${rawValue}' as number. Expected a numeric string.`,
-          );
-        }
-        break;
-      case ResTypes.Boolean:
-        const lowerRawValue = rawValue.toLowerCase();
-        if (lowerRawValue === "true") {
-          processedValue = true;
-        } else if (lowerRawValue === "false") {
-          processedValue = false;
-        } else {
-          throw new Error(
-            `Cannot parse '${rawValue}' as boolean. Expected 'true' or 'false'.`,
-          );
-        }
-        break;
-      case ResTypes.List: // "string[]"
-        if (rawValue === "") {
-          processedValue = [];
-        } else {
-          // TODO: implement more robust parsing for lists
-          processedValue = rawValue
-            .split("\n")
-            .map((s) => s.trim())
-            .filter((s) => s.length > 0);
-        }
-        break;
-    }
-    return processedValue;
   }
 }

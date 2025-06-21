@@ -1,22 +1,36 @@
-export enum ResTypes {
+import z from "zod/v4";
+
+export enum ResultType {
   String = "string",
   List = "string[]",
   Number = "number",
   Boolean = "boolean",
 }
 
-export type ResTypeStrings = `${ResTypes}`;
+export type ResultTypeUnion = `${ResultType}`;
 
-export type StringToType<S extends ResTypeStrings> = S extends ResTypes.String
-  ? string
-  : S extends ResTypes.List
-    ? string[]
-    : S extends ResTypes.Number
+export type DeclarativeSchema = {
+  [key: string]: ResultTypeUnion | DeclarativeSchema | DeclarativeSchema[];
+};
+
+export type DeclarativeToTS<T extends DeclarativeSchema> = {
+  [K in keyof T]: T[K] extends "string"
+    ? string
+    : T[K] extends "number"
       ? number
-      : S extends ResTypes.Boolean
+      : T[K] extends "boolean"
         ? boolean
-        : never;
+        : T[K] extends "string[]"
+          ? string[]
+          : T[K] extends [infer U extends DeclarativeSchema]
+            ? DeclarativeToTS<U>[]
+            : T[K] extends DeclarativeSchema
+              ? DeclarativeToTS<T[K]>
+              : never;
+};
 
-export type StructuredOutput<T extends Record<string, ResTypeStrings>> = {
-  [K in keyof T]: StringToType<T[K]>;
+export type OutputSchema = Record<string, z.ZodTypeAny>;
+
+export type InferedOutputSchema<T extends OutputSchema> = {
+  [K in keyof T]: z.output<T[K]>;
 };

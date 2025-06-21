@@ -1,11 +1,12 @@
 import { Command, Option } from "@commander-js/extra-typings";
 import dotenv from "dotenv";
-import { ResTypeStrings, StructuredOutput } from "../src/core/types.js";
+import {} from "../src/core/typecheck.js";
+import { DeclarativeSchema } from "../src/core/types.js";
 import { Axle, ChainOfThought, Instruct } from "../src/index.js";
 
 dotenv.config();
 
-const PROVIDERS = ["openai", "anthropic", "ollama"] as const;
+const PROVIDERS = ["openai", "anthropic", "ollama", "googleai"] as const;
 const INSTRUCT_TYPES = ["instruct", "cot"] as const;
 
 // Define interface for command options
@@ -39,7 +40,7 @@ interface PromptScenario {
   id: string;
   description: string;
   prompt: string;
-  resFormat: Record<string, ResTypeStrings>;
+  resFormat: DeclarativeSchema;
 }
 
 const PROMPT_SCENARIOS: PromptScenario[] = [
@@ -250,46 +251,169 @@ const PROMPT_SCENARIOS: PromptScenario[] = [
     description:
       "Number, List, String outputs: Recipe prep time, ingredients, and type of cuisine.",
     prompt:
-      "Provide a recipe's preparation time in minutes, a short comma-separated list of 2 main ingredients, and its type of cuisine.",
+      "The user asked for Lasagna. Provide the recipe's preparation time in minutes, a short comma-separated list of 2 main ingredients, and its type of cuisine.",
     resFormat: {
       prepTimeMinutes: "number",
       mainIngredients: "string[]",
       cuisineType: "string",
     },
   },
+
+  // --- Nested Object Scenarios ---
+
+  // Simple nested object
+  {
+    id: "nested_simple_01_book_author",
+    description: "Nested object: Book with author details.",
+    prompt:
+      "Tell me about a famous book including the author's name and birth year.",
+    resFormat: {
+      bookTitle: "string",
+      author: {
+        name: "string",
+        birthYear: "number",
+      },
+    },
+  },
+
+  // Nested object with multiple fields
+  {
+    id: "nested_complex_01_product_details",
+    description:
+      "Complex nested object: Product with pricing and specifications.",
+    prompt:
+      "Describe a smartphone with its pricing information and key specifications.",
+    resFormat: {
+      productName: "string",
+      pricing: {
+        currentPrice: "number",
+        originalPrice: "number",
+        onSale: "boolean",
+      },
+      specs: {
+        screenSize: "string",
+        storageGB: "number",
+        features: "string[]",
+      },
+    },
+  },
+
+  // Nested object with array of objects
+  {
+    id: "nested_array_01_restaurant_menu",
+    description: "Nested object with array: Restaurant with menu items.",
+    prompt:
+      "Describe a restaurant including its basic info and 2 popular menu items with prices.",
+    resFormat: {
+      restaurantName: "string",
+      cuisine: "string",
+      location: {
+        city: "string",
+        country: "string",
+      },
+      popularItems: "string[]",
+      averagePrice: "number",
+    },
+  },
+
+  // Deep nested object
+  {
+    id: "nested_deep_01_company_structure",
+    description:
+      "Deep nested object: Company with department and employee info.",
+    prompt:
+      "Describe a tech company with information about one of its departments and a key employee.",
+    resFormat: {
+      companyName: "string",
+      department: {
+        name: "string",
+        employeeCount: "number",
+        manager: {
+          name: "string",
+          yearsExperience: "number",
+          isRemote: "boolean",
+        },
+      },
+      founded: "number",
+    },
+  },
+
+  // Mixed nested with arrays
+  {
+    id: "nested_mixed_01_university_course",
+    description:
+      "Mixed nested object: University course with instructor and student info.",
+    prompt:
+      "Describe a university course including instructor details and information about enrolled students.",
+    resFormat: {
+      courseName: "string",
+      courseCode: "string",
+      instructor: {
+        name: "string",
+        department: "string",
+        rating: "number",
+      },
+      enrollment: {
+        totalStudents: "number",
+        isFullyBooked: "boolean",
+        prerequisites: "string[]",
+      },
+      semester: "string",
+    },
+  },
 ];
 
 function validateResult(
-  obj: StructuredOutput<Record<string, ResTypeStrings>>,
-  resFormat: Record<string, ResTypeStrings>,
+  obj: Record<string, unknown>,
+  resFormat: DeclarativeSchema,
 ) {
   if (!obj) {
     return false;
   }
+
   if (Object.keys(obj).length != Object.keys(resFormat).length) {
     console.error("fail length");
     return false;
   }
+
   for (const key in obj) {
     const type = resFormat[key];
-    if (type === "string" && typeof obj[key] !== "string") {
-      console.error("fail string");
-      return false;
-    } else if (type === "number" && typeof obj[key] !== "number") {
-      console.error("fail number");
-      return false;
-    } else if (type === "boolean" && typeof obj[key] !== "boolean") {
-      console.error("fail boolean");
-      return false;
-    } else if (
-      type === "string[]" &&
-      !Array.isArray(obj[key]) &&
-      Array(obj[key]).length === 0
-    ) {
-      console.error("fail string[]");
-      return false;
+    if (typeof type === "string") {
+      if (type === "string" && typeof obj[key] !== "string") {
+        console.error("fail string");
+        return false;
+      } else if (type === "number" && typeof obj[key] !== "number") {
+        console.error("fail number");
+        return false;
+      } else if (type === "boolean" && typeof obj[key] !== "boolean") {
+        console.error("fail boolean");
+        return false;
+      } else if (
+        type === "string[]" &&
+        (!Array.isArray(obj[key]) || Array(obj[key]).length === 0)
+      ) {
+        console.error("fail string[]");
+        return false;
+      }
+    } else if (typeof type === "object" && type !== null) {
+      // Handle nested objects
+      if (typeof obj[key] !== "object" || obj[key] === null) {
+        console.error(`fail nested object for key ${key}`);
+        return false;
+      }
+      // Recursively validate nested object
+      if (
+        !validateResult(
+          obj[key] as Record<string, unknown>,
+          type as DeclarativeSchema,
+        )
+      ) {
+        console.error(`fail nested validation for key ${key}`);
+        return false;
+      }
     }
   }
+
   return true;
 }
 
@@ -316,6 +440,14 @@ const createAxleConfig = () => {
     case "ollama":
       model = model ?? "gemma3"; // smallest model
       return { ollama: { model, url: "http://localhost:11434" } };
+    case "googleai":
+      if (!process.env.GOOGLE_AI_API_KEY) {
+        console.error("The API Key is not found. Check your .env file");
+        process.exit(1);
+      }
+      return {
+        googleai: { "api-key": process.env.GOOGLE_AI_API_KEY || "", model },
+      };
     default:
       console.error(`Unknown provider: ${provider}`);
       process.exit(1);
@@ -324,7 +456,7 @@ const createAxleConfig = () => {
 
 const axle = new Axle(createAxleConfig());
 console.log(
-  `Using provider: ${provider}, model: ${model || "default"}, instruction type: ${instructType}`,
+  `Using provider: ${provider}, model: ${axle.provider.model}, instruction type: ${instructType}`,
 );
 
 let success = 0;
@@ -338,6 +470,7 @@ for (const scenario of PROMPT_SCENARIOS) {
   }
 
   console.log("==> Scenario ID: " + scenario.id);
+  console.log(instruct.compile().instructions);
   const result = await axle.execute(instruct);
   if (result.success) {
     success = success + 1;

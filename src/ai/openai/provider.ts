@@ -11,7 +11,7 @@ const DEFAULT_MODEL = Models.GPT_4_1;
 export class OpenAIProvider implements AIProvider {
   name = "OpenAI";
   client: OpenAI;
-  model: string | undefined;
+  model: string;
 
   constructor(apiKey: string, model?: string | undefined) {
     this.model = model || DEFAULT_MODEL;

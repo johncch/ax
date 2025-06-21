@@ -5,7 +5,7 @@ import {
   OllamaProviderConfig,
   OpenAIProviderConfig,
 } from "../../ai/types.js";
-import { ResTypeStrings } from "../../core/types.js";
+import { ResultTypeUnion } from "../../core/types.js";
 
 export interface ValidationError {
   value: string;
@@ -76,7 +76,7 @@ export interface ChatStep extends StepBase {
   uses: "chat";
   system?: string;
   message: string;
-  output?: Record<string, ResTypeStrings>;
+  output?: Record<string, ResultTypeUnion>;
   replace?: Replace[];
   tools?: string[];
   images?: ImageReference[];

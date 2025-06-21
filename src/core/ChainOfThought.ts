@@ -1,66 +1,75 @@
+import * as z from "zod/v4";
 import { Recorder } from "../recorder/recorder.js";
-import { AbstractInstruct, DEFAULT_OUTPUT_VALUE } from "./AbstractInstruct.js";
-import { ResTypes, ResTypeStrings, StructuredOutput } from "./types.js";
-
-type DefaultResFormatType = { response: ResTypes.String };
+import { AbstractInstruct } from "./AbstractInstruct.js";
+import { declarativeToOutputSchema, isOutputSchema } from "./typecheck.js";
+import {
+  DeclarativeSchema,
+  InferedOutputSchema,
+  OutputSchema,
+} from "./types.js";
 
 export class ChainOfThought<
-  O extends Record<string, ResTypeStrings>,
-> extends AbstractInstruct<O> {
-  private constructor(prompt: string, resFormat: O) {
-    super(prompt, resFormat);
+  T extends OutputSchema,
+> extends AbstractInstruct<T> {
+  constructor(prompt: string, schema: T) {
+    super(prompt, schema);
   }
 
-  public static with<NewO extends Record<string, ResTypeStrings>>(
+  static with<T extends OutputSchema>(
     prompt: string,
-    resFormat: NewO,
-  ): ChainOfThought<NewO>;
-  public static with(prompt: string): ChainOfThought<DefaultResFormatType>;
-  public static with<NewO extends Record<string, ResTypeStrings>>(
+    schema: T,
+  ): ChainOfThought<T>;
+  static with<T extends DeclarativeSchema>(
     prompt: string,
-    resFormat?: NewO,
-  ): ChainOfThought<NewO | DefaultResFormatType> {
-    if (resFormat) {
-      return new ChainOfThought(prompt, resFormat);
+    schema: T,
+  ): ChainOfThought<OutputSchema>;
+  static with(prompt: string): ChainOfThought<{ response: z.ZodString }>;
+  static with<T extends OutputSchema | DeclarativeSchema>(
+    prompt: string,
+    schema?: T,
+  ): any {
+    if (!schema) {
+      return new ChainOfThought(prompt, { response: z.string() });
+    }
+
+    if (isOutputSchema(schema)) {
+      return new ChainOfThought(prompt, schema);
     } else {
-      return new ChainOfThought(
-        prompt,
-        DEFAULT_OUTPUT_VALUE,
-      ) as ChainOfThought<DefaultResFormatType>;
+      const schemaRecord = declarativeToOutputSchema(schema);
+      return new ChainOfThought(prompt, schemaRecord);
     }
   }
 
-  override compile(
-    variables: Record<string, string>,
-    runtime: {
-      recorder?: Recorder;
-      options?: { warnUnused?: boolean };
-    } = {},
-  ): { message: string; instructions: string } {
-    const userPrompt = this.getFinalUserPrompt(variables, runtime);
-    const instructionPrompt = this.getFormatInstructions();
+  override createInstructions(instructions: string = ""): string {
     const chainOfThoughtPrompt =
-      "Let's think step by step. Use <thinking></thinking> tags to show your reasoning and thought process.";
+      "Let's think step by step. Use <thinking></thinking> tags to show your reasoning and thought process.\n\n";
+    return super.createInstructions(chainOfThoughtPrompt);
+  }
+
+  override finalize(
+    rawValue: string,
+    runtime: { recorder?: Recorder } = {},
+  ): InferedOutputSchema<T> & { thinking: string } {
+    const results = super.finalize(rawValue, runtime);
+    const taggedSections = this.parseTaggedSections(rawValue);
+
+    let thinkTagName = "thinking";
+    if (!("thinking" in taggedSections.tags)) {
+      if ("think" in taggedSections.tags) {
+        thinkTagName = "think";
+        runtime.recorder?.warn?.log(
+          "No <thinking> section found in the response but found <think> instead. This may be a limitation of the model or prompt.",
+        );
+      } else {
+        runtime.recorder?.warn?.log(
+          "No <thinking> section found in the response. Please ensure your response includes a <thinking> tag.",
+        );
+      }
+    }
 
     return {
-      message: userPrompt,
-      instructions: `${chainOfThoughtPrompt}\n\n${instructionPrompt}`,
+      ...results,
+      thinking: taggedSections.tags[thinkTagName] || "",
     };
-  }
-
-  override finalize(rawValue: string): StructuredOutput<O> & { thinking } {
-    const taggedSections = this.parseTaggedSections(rawValue);
-    const results = super.finalize(rawValue, taggedSections) as Record<
-      string,
-      unknown
-    >;
-    if ("thinking" in taggedSections.tags) {
-      results.thinking = taggedSections.tags.thinking;
-    } else {
-      throw new Error(
-        "Expected results with tag <thinking> but it does not exist",
-      );
-    }
-    return results as StructuredOutput<O> & { thinking: string };
   }
 }

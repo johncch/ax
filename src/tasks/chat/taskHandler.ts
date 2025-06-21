@@ -1,3 +1,4 @@
+import * as z from "zod/v4";
 import { Chat } from "../../ai/chat.js";
 import {
   AIProvider,
@@ -7,19 +8,20 @@ import {
   ToolCall,
 } from "../../ai/types.js";
 import { Instruct } from "../../core/Instruct.js";
-import { ResTypeStrings } from "../../core/types.js";
 import { Recorder } from "../../recorder/recorder.js";
 import { TaskHandler } from "../../registry/taskHandler.js";
 import { ToolExecutable, ToolSchema } from "../../tools/types.js";
 import { ProgramOptions, Stats } from "../../types.js";
 import { Keys, setResultsIntoVariables } from "../../utils/variables.js";
 
-export class ChatTaskHandler<O extends Record<string, ResTypeStrings>>
-  implements TaskHandler<Instruct<O>>
+type SchemaRecord = Record<string, z.ZodTypeAny>;
+
+export class ChatTaskHandler<T extends SchemaRecord>
+  implements TaskHandler<Instruct<T>>
 {
   readonly taskType = "instruct";
 
-  canHandle(task: any): task is Instruct<O> {
+  canHandle(task: any): task is Instruct<T> {
     return (
       task &&
       typeof task === "object" &&
@@ -29,7 +31,7 @@ export class ChatTaskHandler<O extends Record<string, ResTypeStrings>>
   }
 
   async execute(params: {
-    task: Instruct<O>;
+    task: Instruct<T>;
     chat: Chat;
     provider: AIProvider;
     variables: Record<string, any>;
@@ -45,10 +47,8 @@ export class ChatTaskHandler<O extends Record<string, ResTypeStrings>>
   }
 }
 
-export async function executeChatAction<
-  O extends Record<string, ResTypeStrings>,
->(params: {
-  instruct: Instruct<O>;
+export async function executeChatAction<T extends SchemaRecord>(params: {
+  instruct: Instruct<T>;
   chat: Chat;
   provider: AIProvider;
   stats?: Stats;
@@ -99,8 +99,12 @@ export async function executeChatAction<
           if (response.message.content) {
             const content = response.message.content;
             chat.addAssistant(content);
-            const result = instruct.finalize(content);
-            setResultsIntoVariables(result, variables, { options, recorder });
+            const result = instruct.finalize(content, { recorder });
+            setResultsIntoVariables(
+              result as Record<string, unknown>,
+              variables,
+              { options, recorder },
+            );
             variables[Keys.LastResult] = result;
           }
           continueProcessing = false;
@@ -144,9 +148,9 @@ export async function executeChatAction<
   return { action: "continue" };
 }
 
-async function executeToolCalls<O extends Record<string, ResTypeStrings>>(
+async function executeToolCalls<T extends SchemaRecord>(
   toolCalls: ToolCall[],
-  instruct: Instruct<O>,
+  instruct: Instruct<T>,
   runtime: { recorder?: Recorder } = {},
 ): Promise<ChatItemToolCallResult[]> {
   const { recorder } = runtime;

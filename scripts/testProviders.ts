@@ -46,7 +46,7 @@ async function testProvider(
     const axle = new Axle(config);
 
     // Create a simple instruction
-    const instruct = Instruct.with(TEST_MESSAGE, { greeting: "string" });
+    const instruct = Instruct.with(TEST_MESSAGE, { response: "string" });
 
     // Execute the instruction
     const result = await axle.execute(instruct);
@@ -56,7 +56,7 @@ async function testProvider(
       return {
         provider: name,
         success: true,
-        response: instruct.result?.greeting || instruct.rawResponse,
+        response: (instruct.result as any)?.response || instruct.rawResponse,
         model: config[name]?.model || "default",
         executionTime,
       };

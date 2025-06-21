@@ -19,7 +19,7 @@ import {
 } from "../workflows/types.js";
 
 export class Axle {
-  private provider: AIProvider;
+  provider: AIProvider;
   private stats = { in: 0, out: 0 };
   private variables: Record<string, any> = {};
   recorder = new Recorder();

@@ -1,4 +1,4 @@
-import { ResTypeStrings } from "../../core/types.js";
+import { ResultTypeUnion } from "../../core/types.js";
 import {
   AIProviderUse,
   BatchJob,
@@ -380,7 +380,7 @@ export function isChatStep(
     }
 
     // Validate output is Record<string, ResTypeStrings>
-    const validResTypes: ResTypeStrings[] = [
+    const validResTypes: ResultTypeUnion[] = [
       "string",
       "string[]",
       "number",
@@ -390,7 +390,7 @@ export function isChatStep(
       if (
         typeof key !== "string" ||
         typeof value !== "string" ||
-        !validResTypes.includes(value as ResTypeStrings)
+        !validResTypes.includes(value as ResultTypeUnion)
       ) {
         if (errVal)
           errVal.value =

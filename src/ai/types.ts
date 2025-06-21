@@ -23,6 +23,8 @@ export interface AIProviderConfig {
  */
 
 export interface AIProvider {
+  get name(): string;
+  get model(): string;
   createChatRequest(chat: Chat, context: { recorder?: Recorder }): AIRequest;
 }
 

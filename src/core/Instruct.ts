@@ -1,31 +1,32 @@
-import { AbstractInstruct, DEFAULT_OUTPUT_VALUE } from "./AbstractInstruct.js";
-import { ResTypes, ResTypeStrings } from "./types.js";
+import * as z from "zod/v4";
+import { AbstractInstruct } from "./AbstractInstruct.js";
+import { declarativeToOutputSchema, isOutputSchema } from "./typecheck.js";
+import { DeclarativeSchema, OutputSchema } from "./types.js";
 
-type DefaultResFormatType = { response: ResTypes.String };
-
-export class Instruct<
-  O extends Record<string, ResTypeStrings>,
-> extends AbstractInstruct<O> {
-  private constructor(prompt: string, resFormat: O) {
-    super(prompt, resFormat);
+export class Instruct<T extends OutputSchema> extends AbstractInstruct<T> {
+  constructor(prompt: string, schema: T) {
+    super(prompt, schema);
   }
 
-  public static with<NewO extends Record<string, ResTypeStrings>>(
+  static with<T extends OutputSchema>(prompt: string, schema: T): Instruct<T>;
+  static with<T extends DeclarativeSchema>(
     prompt: string,
-    resFormat: NewO,
-  ): Instruct<NewO>;
-  public static with(prompt: string): Instruct<DefaultResFormatType>;
-  public static with<NewO extends Record<string, ResTypeStrings>>(
+    schema: T,
+  ): Instruct<OutputSchema>;
+  static with(prompt: string): Instruct<{ response: z.ZodString }>;
+  static with<T extends OutputSchema | DeclarativeSchema>(
     prompt: string,
-    resFormat?: NewO,
-  ): Instruct<NewO | DefaultResFormatType> {
-    if (resFormat) {
-      return new Instruct(prompt, resFormat);
+    schema?: T,
+  ): any {
+    if (!schema) {
+      return new Instruct(prompt, { response: z.string() });
+    }
+
+    if (isOutputSchema(schema)) {
+      return new Instruct(prompt, schema);
     } else {
-      return new Instruct(
-        prompt,
-        DEFAULT_OUTPUT_VALUE,
-      ) as Instruct<DefaultResFormatType>;
+      const schemaRecord = declarativeToOutputSchema(schema);
+      return new Instruct(prompt, schemaRecord);
     }
   }
 }

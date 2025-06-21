@@ -7,7 +7,6 @@ config();
 
 const instruct = Instruct.with(
   "Please provide a friendly greeting for {{name}}",
-  { greeting: "string" },
 );
 instruct.addInput("name", "John Doe");
 
@@ -19,4 +18,4 @@ axle.addWriter(new ConsoleWriter());
 const result = await axle.execute(instruct, writeTask);
 
 console.log(result);
-console.log(instruct.result.greeting);
+console.log(instruct.result?.response);

@@ -18,7 +18,7 @@ async function analyzeImage() {
 
   const result = await axle.execute(instruct);
   console.log(result);
-  console.log(instruct.result.description);
+  console.log((instruct.result as any)?.description);
 }
 
 analyzeImage();

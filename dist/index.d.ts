@@ -1,3 +1,6 @@
+import * as z from 'zod/v4';
+import z__default from 'zod/v4';
+
 type PlainObject = Record<string, unknown>;
 type ProgramOptions = {
     dryRun?: boolean;
@@ -152,6 +155,8 @@ interface AIProviderConfig {
     googleai: GoogleAIProviderConfig;
 }
 interface AIProvider {
+    get name(): string;
+    get model(): string;
     createChatRequest(chat: Chat, context: {
         recorder?: Recorder;
     }): AIRequest;
@@ -284,7 +289,7 @@ interface DAGWorkflowOptions {
 }
 
 declare class Axle {
-    private provider;
+    provider: AIProvider;
     private stats;
     private variables;
     recorder: Recorder;
@@ -316,21 +321,23 @@ declare class Axle {
     static loadFileContent(filePath: string, encoding: "base64"): Promise<Base64FileInfo>;
 }
 
-declare enum ResTypes {
+declare enum ResultType {
     String = "string",
     List = "string[]",
     Number = "number",
     Boolean = "boolean"
 }
-type ResTypeStrings = `${ResTypes}`;
-type StringToType<S extends ResTypeStrings> = S extends ResTypes.String ? string : S extends ResTypes.List ? string[] : S extends ResTypes.Number ? number : S extends ResTypes.Boolean ? boolean : never;
-type StructuredOutput<T extends Record<string, ResTypeStrings>> = {
-    [K in keyof T]: StringToType<T[K]>;
+type ResultTypeUnion = `${ResultType}`;
+type DeclarativeSchema = {
+    [key: string]: ResultTypeUnion | DeclarativeSchema | DeclarativeSchema[];
+};
+type OutputSchema = Record<string, z__default.ZodTypeAny>;
+type InferedOutputSchema<T extends OutputSchema> = {
+    [K in keyof T]: z__default.output<T[K]>;
 };
 
-declare abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>> implements Task {
+declare abstract class AbstractInstruct<T extends OutputSchema> implements Task {
     readonly type = "instruct";
-    protected _result: StructuredOutput<O> | undefined;
     prompt: string;
     system: string | null;
     inputs: Record<string, string>;
@@ -340,43 +347,29 @@ declare abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>
         content: string;
         name?: string;
     }>;
-    resFormat: O;
+    instructions: string[];
+    schema: T;
     rawResponse: string;
-    finalPrompt: string;
-    protected constructor(prompt: string, resFormat: O);
+    protected _taggedSections: {
+        tags: Record<string, string>;
+        remaining: string;
+    } | undefined;
+    protected _result: InferedOutputSchema<T> | undefined;
+    protected constructor(prompt: string, schema: T);
     setInputs(inputs: Record<string, string>): void;
     addInput(name: string, value: string): void;
     addTools(tools: ToolExecutable[]): void;
     addTool(tool: ToolExecutable): void;
-    /**
-     * Add an image file to the task.
-     * Throws an error if the file type is not "image".
-     * @param file - the Base64FileInfo representing the image file
-     */
     addImage(file: FileInfo): void;
-    /**
-     * Add a document file to the task.
-     * Throws an error if the file type is not "document".
-     * @param file - the Base64FileInfo representing the document file
-     */
     addDocument(file: FileInfo): void;
-    /**
-     * Add a file to the task. It can be an image or document file.
-     * Throws an error if the file type is not supported.
-     * @param file - the Base64FileInfo representing the document or image file
-     */
     addFile(file: FileInfo): void;
-    /**
-     * Add a text reference to the task.
-     * @param textFile - the TextFileInfo or string content of the reference
-     * @param options - optional name for the reference
-     */
     addReference(textFile: FileInfo | TextFileInfo | string, options?: {
         name?: string;
     }): void;
+    addInstructions(instruction: string): void;
     hasTools(): boolean;
     hasFiles(): boolean;
-    get result(): StructuredOutput<O>;
+    get result(): InferedOutputSchema<T> | undefined;
     compile(variables: Record<string, string>, runtime?: {
         recorder?: Recorder;
         options?: {
@@ -386,57 +379,45 @@ declare abstract class AbstractInstruct<O extends Record<string, ResTypeStrings>
         message: string;
         instructions: string;
     };
-    protected getFinalUserPrompt(variables: Record<string, string>, runtime?: {
+    protected createUserMessage(variables: Record<string, string>, runtime?: {
         recorder?: Recorder;
         options?: {
             warnUnused?: boolean;
         };
     }): string;
-    protected getFormatInstructions(): string;
-    /**
-     *
-     * @param rawValue - the raw value from the AI
-     * @param taggedSections - optional, for overrides to use
-     * @returns - the parsed result
-     */
-    finalize(rawValue: string, taggedSections?: {
-        tags: Record<string, string>;
-        remaining: string;
-    }): StructuredOutput<O>;
+    protected createInstructions(instructions?: string): string;
+    protected generateFieldInstructions(key: string, schema: z.ZodTypeAny): string;
+    finalize(rawValue: string, runtime?: {
+        recorder?: Recorder;
+    }): InferedOutputSchema<T>;
+    private preprocessValue;
     protected parseTaggedSections(input: string): {
         tags: Record<string, string>;
         remaining: string;
     };
-    protected typeResponses(typeString: ResTypeStrings, rawValue: string): StringToType<ResTypes>;
 }
 
-type DefaultResFormatType$1 = {
-    response: ResTypes.String;
-};
-declare class Instruct<O extends Record<string, ResTypeStrings>> extends AbstractInstruct<O> {
-    private constructor();
-    static with<NewO extends Record<string, ResTypeStrings>>(prompt: string, resFormat: NewO): Instruct<NewO>;
-    static with(prompt: string): Instruct<DefaultResFormatType$1>;
+declare class Instruct<T extends OutputSchema> extends AbstractInstruct<T> {
+    constructor(prompt: string, schema: T);
+    static with<T extends OutputSchema>(prompt: string, schema: T): Instruct<T>;
+    static with<T extends DeclarativeSchema>(prompt: string, schema: T): Instruct<OutputSchema>;
+    static with(prompt: string): Instruct<{
+        response: z.ZodString;
+    }>;
 }
 
-type DefaultResFormatType = {
-    response: ResTypes.String;
-};
-declare class ChainOfThought<O extends Record<string, ResTypeStrings>> extends AbstractInstruct<O> {
-    private constructor();
-    static with<NewO extends Record<string, ResTypeStrings>>(prompt: string, resFormat: NewO): ChainOfThought<NewO>;
-    static with(prompt: string): ChainOfThought<DefaultResFormatType>;
-    compile(variables: Record<string, string>, runtime?: {
+declare class ChainOfThought<T extends OutputSchema> extends AbstractInstruct<T> {
+    constructor(prompt: string, schema: T);
+    static with<T extends OutputSchema>(prompt: string, schema: T): ChainOfThought<T>;
+    static with<T extends DeclarativeSchema>(prompt: string, schema: T): ChainOfThought<OutputSchema>;
+    static with(prompt: string): ChainOfThought<{
+        response: z.ZodString;
+    }>;
+    createInstructions(instructions?: string): string;
+    finalize(rawValue: string, runtime?: {
         recorder?: Recorder;
-        options?: {
-            warnUnused?: boolean;
-        };
-    }): {
-        message: string;
-        instructions: string;
-    };
-    finalize(rawValue: string): StructuredOutput<O> & {
-        thinking: any;
+    }): InferedOutputSchema<T> & {
+        thinking: string;
     };
 }
 
@@ -485,7 +466,7 @@ interface ChatStep extends StepBase {
     uses: "chat";
     system?: string;
     message: string;
-    output?: Record<string, ResTypeStrings>;
+    output?: Record<string, ResultTypeUnion>;
     replace?: Replace[];
     tools?: string[];
     images?: ImageReference[];
@@ -529,4 +510,24 @@ interface SerialWorkflow {
 }
 declare const serialWorkflow: SerialWorkflow;
 
-export { type AIProvider, Axle, ChainOfThought, type DAGDefinition, type DAGWorkflowOptions, type FileInfo, Instruct, LogLevel, type SerializedExecutionResponse, WriteOutputTask, concurrentWorkflow, dagWorkflow, serialWorkflow };
+declare class ConsoleWriter implements RecorderWriter {
+    private tasks;
+    private entries;
+    private truncate;
+    private intervalId;
+    private spinnerInterval;
+    private lastRender;
+    private isRendering;
+    private inline;
+    constructor(options?: {
+        truncate?: number;
+        inline?: boolean;
+    });
+    private startSpinner;
+    private stopSpinner;
+    private renderTasks;
+    handleEvent(event: RecorderEntry): void;
+    destroy(): void;
+}
+
+export { type AIProvider, Axle, ChainOfThought, ConsoleWriter, type DAGDefinition, type DAGWorkflowOptions, type FileInfo, Instruct, LogLevel, type SerializedExecutionResponse, WriteOutputTask, concurrentWorkflow, dagWorkflow, serialWorkflow };
